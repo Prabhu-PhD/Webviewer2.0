@@ -28,8 +28,6 @@ jobs:
         run: |
           mkdir build
           cp -r web/* build/
-          cp -r assets build/assets
-          cp support.html build/
           cp *.md build/ || true
 
       - name: Setup Pages
