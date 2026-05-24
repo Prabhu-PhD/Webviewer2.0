@@ -599,11 +599,20 @@ function adaptGoogleDocsUrl(url) {
   const documentId = pathParts[2] ?? "";
 
   if (pathParts[1] !== "d" || !documentId) {
+  
+  if (docType === "forms" && pathParts[2] === "viewform") {
     return {
-      note: "",
-      providerName: "Google Workspace",
-      url
+      note: "Converted to Google Forms embed.",
+      providerName: "Google Forms",
+      url: new URL(`https://docs.google.com/forms/d/${documentId}/viewform?embedded=true`)
     };
+  }
+
+  return {
+    note: "",
+    providerName: "Google Workspace",
+    url
+  };
   }
 
   if (docType === "presentation") {
