@@ -1,0 +1,414 @@
+:root {
+  --text-light: #222;
+  --text-placeholder: #888;
+  --accent: #e8844a; /* Orange */
+  --accent-hover: #d4703a;
+  --toast-bg: rgba(24, 28, 38, 0.95);
+  --empty-color: rgba(120, 125, 135, 0.5);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+/* ── Shell ──────────────────────────────────────────────────────── */
+
+.shell {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+
+.toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0; /* Sharp transition between input and button */
+  padding: 10px;
+  background: transparent; /* No fill */
+  border: none; /* No outline */
+  transition: all 0.3s ease;
+}
+
+/* When empty, center the toolbar in the middle of the slide */
+.shell.is-empty .toolbar {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 500px;
+  padding: 0;
+}
+
+.address-bar {
+  display: flex;
+  flex: 1;
+  gap: 0; /* Elements touch each other */
+}
+
+#url-input {
+  flex: 1;
+  height: 44px;
+  min-width: 0;
+  padding: 0 16px;
+  background: #ffffff; /* White fill */
+  border: 2px solid var(--accent); /* Orange outline */
+  border-right: none; /* Connect to the button */
+  border-radius: 0; /* Sharp corners */
+  color: var(--text-light);
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+}
+
+#url-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.go-btn {
+  height: 44px;
+  padding: 0 24px;
+  background: var(--accent); /* Orange fill */
+  border: 2px solid var(--accent);
+  border-radius: 0; /* Sharp corners */
+  color: #ffffff; /* White text */
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.go-btn:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border: 2px solid #ddd;
+  border-radius: 0;
+  color: #555;
+  cursor: pointer;
+  margin-left: 10px;
+  transition: background 0.15s;
+}
+
+.toolbar-btn:hover {
+  background: #f0f0f0;
+}
+
+/* Hide the toggle button when in empty state centered view */
+.shell.is-empty .toolbar-btn {
+  display: none;
+}
+
+/* ── Loading Bar ────────────────────────────────────────────────── */
+
+.loading-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 11;
+  overflow: hidden;
+  opacity: 0;
+  background: #f0f0f0;
+  transition: opacity 0.2s;
+}
+
+.loading-bar.is-active {
+  opacity: 1;
+}
+
+.loading-bar::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--accent);
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Toast ──────────────────────────────────────────────────────── */
+
+.toast {
+  position: absolute;
+  top: 66px;
+  left: 10px;
+  right: 10px;
+  z-index: 9;
+  padding: 12px 16px;
+  background: var(--toast-bg);
+  border-radius: 0; /* Sharp corners */
+  color: #fff;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+
+.toast.is-hidden {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.toast[data-type="error"] { border-left: 4px solid #e05252; }
+.toast[data-type="warning"] { border-left: 4px solid #d4903a; }
+.toast[data-type="success"] { border-left: 4px solid #4a9e6e; }
+.toast[data-type="info"] { border-left: 4px solid #5a8ec7; }
+
+/* ── Floating Toggle ────────────────────────────────────────────── */
+
+.floating-toggle {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #ffffff;
+  border: 2px solid #ddd;
+  border-radius: 0; /* Sharp corners */
+  color: #555;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.floating-toggle:hover {
+  background: #f0f0f0;
+}
+
+/* ── Empty State ────────────────────────────────────────────────── */
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff; /* Clean white background */
+  transition: opacity 0.35s ease;
+}
+
+/* Hide the icon and text since the input is now centered here */
+.empty-icon,
+.empty-state p,
+.empty-hint {
+  display: none;
+}
+
+.empty-state.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Block Overlay ──────────────────────────────────────────────── */
+
+.block-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  transition: opacity 0.3s ease;
+}
+
+.block-overlay.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.block-card {
+  max-width: 420px;
+  width: 100%;
+  padding: 32px;
+  background: #fff;
+  border-radius: 0; /* Sharp corners */
+  border: 2px solid #ddd;
+  text-align: center;
+}
+
+.block-icon {
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.block-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  color: #222;
+}
+
+.block-card > p {
+  margin: 0;
+  color: #555;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+.block-tips {
+  text-align: left;
+  margin: 20px 0;
+  padding: 14px 16px;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+}
+
+.block-tips p {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: #222;
+  font-size: 0.84rem;
+}
+
+.block-tips ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #555;
+  font-size: 0.84rem;
+  line-height: 1.7;
+}
+
+.block-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.block-btn {
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 0; /* Sharp corners */
+  border: 2px solid #ddd;
+  background: #fff;
+  color: #222;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.block-btn:hover {
+  background: #f0f0f0;
+}
+
+.block-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.block-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+
+/* ── Viewer Frame ───────────────────────────────────────────────── */
+
+#viewer-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+  touch-action: auto;
+}
+
+/* ── Chrome Hidden (user toggled) ───────────────────────────────── */
+
+.shell.is-chrome-hidden .toolbar {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.shell.is-chrome-hidden .toast {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell.is-chrome-hidden .floating-toggle {
+  display: flex;
+}
+
+/* ── Slideshow Mode (overrides chrome toggle) ───────────────────── */
+
+.shell[data-view="read"] .toolbar {
+  opacity: 0;
+  transform: translateY(-12px);
+  pointer-events: none;
+}
+
+.shell[data-view="read"] .floating-toggle {
+  display: none;
+}
+
+.shell[data-view="read"] .toast {
+  display: none;
+}
+
+.shell[data-view="read"] .empty-state {
+  display: none;
+}
+
+.shell[data-view="read"] .block-overlay {
+  display: none;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .shell.is-empty .toolbar {
+    width: 96%;
+  }
+
+  .go-btn {
+    padding: 0 14px;
+  }
+}

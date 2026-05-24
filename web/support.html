@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slide Web Viewer Support</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="support-body">
+  <main class="support-shell">
+    <p class="eyebrow">Support</p>
+    <h1>Slide Web Viewer</h1>
+    <p class="support-lead">This add-in is meant to embed live web content inside PowerPoint slides while being clearer about why some pages cannot load.</p>
+
+    <section class="support-card">
+      <h2>Common reasons a page will not appear</h2>
+      <ul>
+        <li>The page is not using HTTPS.</li>
+        <li>The site blocks iframe embedding with `frame-ancestors` or `X-Frame-Options`.</li>
+        <li>The URL is a normal page link when the provider expects a special embed link.</li>
+        <li>The Office host or environment cannot reach the target page because of network policy.</li>
+      </ul>
+    </section>
+
+    <section class="support-card">
+      <h2>Best results</h2>
+      <ul>
+        <li>Use provider-supplied embed URLs when available.</li>
+        <li>Test in both PowerPoint desktop and PowerPoint on the web if your workflow spans both.</li>
+        <li>Keep a browser fallback ready for sites you do not control.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

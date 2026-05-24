@@ -1,0 +1,19 @@
+{
+  "name": "webviewer2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A PowerPoint content add-in foundation for live web embeds inside slides.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "cert:dev": "powershell -ExecutionPolicy Bypass -File scripts/new-dev-cert.ps1",
+    "check": "node --check web/app.js && node --check scripts/serve.mjs",
+    "doctor": "powershell -ExecutionPolicy Bypass -File scripts/dev-doctor.ps1",
+    "serve": "node scripts/serve.mjs",
+    "setup:shared-catalog": "powershell -ExecutionPolicy Bypass -File scripts/setup-shared-catalog.ps1",
+    "start:local": "powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1",
+    "validate:manifest": "powershell -ExecutionPolicy Bypass -File scripts/validate-manifest.ps1"
+  }
+}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slide Web Viewer</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell" id="shell">
+    <div class="toolbar" id="toolbar">
+      <form class="address-bar" id="load-form" autocomplete="off">
+        <input
+          id="url-input"
+          type="text"
+          placeholder="Paste a URL or embed snippet"
+          autocomplete="off"
+          spellcheck="false" />
+        <button class="go-btn" type="submit">Go</button>
+      </form>
+      <button class="toolbar-btn" id="hide-btn" type="button" title="Hide toolbar" aria-label="Hide toolbar">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="toast is-hidden" id="toast"></div>
+
+    <button class="floating-toggle" id="floating-toggle" type="button" title="Show toolbar" aria-label="Show toolbar">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <div class="loading-bar" id="loading-bar"></div>
+
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon" aria-hidden="true">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" stroke-width="2"/>
+          <path d="M6 18h36" stroke="currentColor" stroke-width="2"/>
+          <circle cx="11" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+          <circle cx="21" cy="14" r="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+      <p>Paste a URL to embed a web page</p>
+      <p class="empty-hint">YouTube, Vimeo, Google Slides, and other embed links work best</p>
+    </div>
+
+    <div class="block-overlay is-hidden" id="block-overlay">
+      <div class="block-card">
+        <svg class="block-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2.5"/>
+          <path d="M11.3 36.7l25.4-25.4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <h2 id="block-title">This site can't be embedded</h2>
+        <p id="block-detail">This website blocks being displayed inside other pages.</p>
+        <div class="block-tips">
+          <p>What you can do</p>
+          <ul>
+            <li>Use the site's embed or share link if available</li>
+            <li>YouTube, Vimeo, Google Slides links auto-convert</li>
+            <li>Open the page in a regular browser instead</li>
+          </ul>
+        </div>
+        <div class="block-actions">
+          <button class="block-btn block-btn-primary" id="block-open-btn" type="button">Open in browser</button>
+          <button class="block-btn" id="block-dismiss-btn" type="button">Try another URL</button>
+        </div>
+      </div>
+    </div>
+
+    <iframe
+      id="viewer-frame"
+      title="Embedded website"
+      src="about:blank"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
+      referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </main>
+
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
