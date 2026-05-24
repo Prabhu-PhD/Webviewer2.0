@@ -400,10 +400,6 @@ body {
 
 /* ── Slideshow Mode (overrides chrome toggle) ───────────────────── */
 
-.shell[data-view="read"] .floating-toggle {
-  display: none;
-}
-
 .shell[data-view="read"] .toast {
   display: none;
 }
