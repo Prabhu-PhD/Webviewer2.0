@@ -5,7 +5,9 @@ const STORAGE_KEYS = {
   isDark: "webviewer2.isDark",
   zoom: "webviewer2.zoom",
   refreshInterval: "webviewer2.refreshInterval",
-  desktopFit: "webviewer2.desktopFit"
+  desktopFit: "webviewer2.desktopFit",
+  safeMode: "webviewer2.safeMode",
+  invertTheme: "webviewer2.invertTheme"
 };
 
 const LOAD_TIMEOUT_MS = 9000;
@@ -34,6 +36,9 @@ const state = {
   refreshInterval: 0,
   refreshTimerId: null,
   desktopFit: false,
+  safeMode: false,
+  drawMode: false,
+  invertTheme: false,
   isLoading: false,
   loadTimer: null,
   officeReady: false
@@ -81,6 +86,12 @@ function cacheUi() {
   ui.zoomInBtn = document.getElementById("zoom-in-btn");
   ui.zoomOutBtn = document.getElementById("zoom-out-btn");
   ui.desktopFitBtn = document.getElementById("desktop-fit-btn");
+  ui.safeModeBtn = document.getElementById("safe-mode-btn");
+  ui.drawModeBtn = document.getElementById("draw-mode-btn");
+  ui.clearDrawBtn = document.getElementById("clear-draw-btn");
+  ui.invertBtn = document.getElementById("invert-btn");
+  ui.safeModeOverlay = document.getElementById("safe-mode-overlay");
+  ui.drawCanvas = document.getElementById("draw-canvas");
   ui.popoutBtn = document.getElementById("popout-btn");
   ui.themeBtn = document.getElementById("theme-btn");
 
@@ -104,6 +115,13 @@ function bindEvents() {
   ui.zoomInBtn.addEventListener("click", zoomIn);
   ui.zoomOutBtn.addEventListener("click", zoomOut);
   ui.desktopFitBtn.addEventListener("click", toggleDesktopFit);
+  ui.safeModeBtn.addEventListener("click", toggleSafeMode);
+  ui.drawModeBtn.addEventListener("click", toggleDrawMode);
+  ui.clearDrawBtn.addEventListener("click", clearCanvas);
+  ui.invertBtn.addEventListener("click", toggleInvertTheme);
+  
+  // Set up drawing canvas
+  setupDrawing();
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
   ui.refreshBtn.addEventListener("click", () => ui.refreshDropdown.classList.toggle("is-hidden"));
   ui.refreshList.addEventListener("click", handleRefreshOptionClick);
@@ -126,11 +144,15 @@ function hydrateFromBrowserStorage() {
     const zoomStr = window.localStorage.getItem(STORAGE_KEYS.zoom);
     const refreshStr = window.localStorage.getItem(STORAGE_KEYS.refreshInterval);
     const desktopFitStr = window.localStorage.getItem(STORAGE_KEYS.desktopFit);
+    const safeModeStr = window.localStorage.getItem(STORAGE_KEYS.safeMode);
+    const invertStr = window.localStorage.getItem(STORAGE_KEYS.invertTheme);
 
     if (isDarkStr) state.isDark = isDarkStr === "true";
     if (zoomStr) state.zoom = parseFloat(zoomStr) || 1.0;
     if (refreshStr) state.refreshInterval = parseInt(refreshStr, 10) || 0;
     if (desktopFitStr) state.desktopFit = desktopFitStr === "true";
+    if (safeModeStr) state.safeMode = safeModeStr === "true";
+    if (invertStr) state.invertTheme = invertStr === "true";
 
     if (recentUrlsStr) {
       try {
@@ -150,6 +172,7 @@ function hydrateFromBrowserStorage() {
       applyDesktopFitScale(document.body.clientWidth, document.body.clientHeight);
     } else {
       syncZoomState();
+    syncAdvancedTools();
     }
     applyRefreshInterval();
 
@@ -356,6 +379,8 @@ function persistToBrowserStorage() {
     window.localStorage.setItem(STORAGE_KEYS.zoom, String(state.zoom));
     window.localStorage.setItem(STORAGE_KEYS.refreshInterval, String(state.refreshInterval));
     window.localStorage.setItem(STORAGE_KEYS.desktopFit, String(state.desktopFit));
+    window.localStorage.setItem(STORAGE_KEYS.safeMode, String(state.safeMode));
+    window.localStorage.setItem(STORAGE_KEYS.invertTheme, String(state.invertTheme));
     if (state.currentUrl) {
       window.localStorage.setItem(STORAGE_KEYS.currentUrl, state.currentUrl);
     }
@@ -998,5 +1023,143 @@ function applyRefreshInterval() {
     }, state.refreshInterval);
   } else {
     ui.refreshBtn.style.color = "";
+  }
+}
+
+
+/* ── Advanced Tools Logic ────────────────────────────────────────── */
+
+function syncAdvancedTools() {
+  // Safe Mode
+  if (state.safeMode) {
+    ui.safeModeBtn.style.color = "var(--accent)";
+    ui.safeModeOverlay.classList.remove("is-hidden");
+  } else {
+    ui.safeModeBtn.style.color = "";
+    ui.safeModeOverlay.classList.add("is-hidden");
+  }
+
+  // Draw Mode
+  if (state.drawMode) {
+    ui.drawModeBtn.style.color = "var(--accent)";
+    ui.drawCanvas.classList.remove("is-hidden");
+    ui.clearDrawBtn.classList.remove("is-hidden");
+    resizeCanvas();
+  } else {
+    ui.drawModeBtn.style.color = "";
+    ui.drawCanvas.classList.add("is-hidden");
+    ui.clearDrawBtn.classList.add("is-hidden");
+  }
+
+  // Invert Theme
+  if (state.invertTheme) {
+    ui.invertBtn.style.color = "var(--accent)";
+    ui.frame.classList.add("smart-invert");
+  } else {
+    ui.invertBtn.style.color = "";
+    ui.frame.classList.remove("smart-invert");
+  }
+}
+
+function toggleSafeMode() {
+  state.safeMode = !state.safeMode;
+  if (state.safeMode) {
+    state.drawMode = false; // Turn off draw mode if entering safe mode
+  }
+  syncAdvancedTools();
+  persistState();
+}
+
+function toggleDrawMode() {
+  state.drawMode = !state.drawMode;
+  if (state.drawMode) {
+    state.safeMode = false; // Turn off safe mode if entering draw mode
+  }
+  syncAdvancedTools();
+  // Draw mode is NOT persisted between reloads
+}
+
+function toggleInvertTheme() {
+  state.invertTheme = !state.invertTheme;
+  syncAdvancedTools();
+  persistState();
+}
+
+// Drawing Logic
+let ctx, isDrawing = false, lastX = 0, lastY = 0;
+
+function setupDrawing() {
+  ctx = ui.drawCanvas.getContext("2d");
+  
+  window.addEventListener('resize', resizeCanvas);
+  
+  ui.drawCanvas.addEventListener('mousedown', startDrawing);
+  ui.drawCanvas.addEventListener('mousemove', draw);
+  ui.drawCanvas.addEventListener('mouseup', stopDrawing);
+  ui.drawCanvas.addEventListener('mouseout', stopDrawing);
+  
+  // Touch support
+  ui.drawCanvas.addEventListener('touchstart', handleTouchStart, {passive: false});
+  ui.drawCanvas.addEventListener('touchmove', handleTouchMove, {passive: false});
+  ui.drawCanvas.addEventListener('touchend', stopDrawing);
+}
+
+function resizeCanvas() {
+  if (!ui.drawCanvas) return;
+  const rect = ui.shell.getBoundingClientRect();
+  ui.drawCanvas.width = rect.width;
+  ui.drawCanvas.height = rect.height;
+  ctx.strokeStyle = "#e05252"; // Red ink
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+}
+
+function getPos(e) {
+  const rect = ui.drawCanvas.getBoundingClientRect();
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+  const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top
+  };
+}
+
+function startDrawing(e) {
+  isDrawing = true;
+  const pos = getPos(e);
+  lastX = pos.x;
+  lastY = pos.y;
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  const pos = getPos(e);
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+  lastX = pos.x;
+  lastY = pos.y;
+}
+
+function handleTouchStart(e) {
+  e.preventDefault();
+  startDrawing(e);
+}
+
+function handleTouchMove(e) {
+  e.preventDefault();
+  draw(e);
+}
+
+function stopDrawing() {
+  isDrawing = false;
+}
+
+function clearCanvas() {
+  if (ctx && ui.drawCanvas) {
+    ctx.clearRect(0, 0, ui.drawCanvas.width, ui.drawCanvas.height);
   }
 }
