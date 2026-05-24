@@ -4,7 +4,8 @@ const STORAGE_KEYS = {
   recentUrls: "webviewer2.recentUrls",
   isDark: "webviewer2.isDark",
   zoom: "webviewer2.zoom",
-  refreshInterval: "webviewer2.refreshInterval"
+  refreshInterval: "webviewer2.refreshInterval",
+  desktopFit: "webviewer2.desktopFit"
 };
 
 const LOAD_TIMEOUT_MS = 9000;
@@ -32,6 +33,7 @@ const state = {
   zoom: 1.0,
   refreshInterval: 0,
   refreshTimerId: null,
+  desktopFit: false,
   isLoading: false,
   loadTimer: null,
   officeReady: false
@@ -78,6 +80,7 @@ function cacheUi() {
   ui.refreshList = document.getElementById("refresh-list");
   ui.zoomInBtn = document.getElementById("zoom-in-btn");
   ui.zoomOutBtn = document.getElementById("zoom-out-btn");
+  ui.desktopFitBtn = document.getElementById("desktop-fit-btn");
   ui.popoutBtn = document.getElementById("popout-btn");
   ui.themeBtn = document.getElementById("theme-btn");
 
@@ -100,6 +103,7 @@ function bindEvents() {
   ui.themeBtn.addEventListener("click", toggleTheme);
   ui.zoomInBtn.addEventListener("click", zoomIn);
   ui.zoomOutBtn.addEventListener("click", zoomOut);
+  ui.desktopFitBtn.addEventListener("click", toggleDesktopFit);
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
   ui.refreshBtn.addEventListener("click", () => ui.refreshDropdown.classList.toggle("is-hidden"));
   ui.refreshList.addEventListener("click", handleRefreshOptionClick);
@@ -121,10 +125,12 @@ function hydrateFromBrowserStorage() {
     const isDarkStr = window.localStorage.getItem(STORAGE_KEYS.isDark);
     const zoomStr = window.localStorage.getItem(STORAGE_KEYS.zoom);
     const refreshStr = window.localStorage.getItem(STORAGE_KEYS.refreshInterval);
+    const desktopFitStr = window.localStorage.getItem(STORAGE_KEYS.desktopFit);
 
     if (isDarkStr) state.isDark = isDarkStr === "true";
     if (zoomStr) state.zoom = parseFloat(zoomStr) || 1.0;
     if (refreshStr) state.refreshInterval = parseInt(refreshStr, 10) || 0;
+    if (desktopFitStr) state.desktopFit = desktopFitStr === "true";
 
     if (recentUrlsStr) {
       try {
@@ -139,7 +145,12 @@ function hydrateFromBrowserStorage() {
 
     syncChromeState();
     syncThemeState();
-    syncZoomState();
+    if (state.desktopFit) {
+      ui.desktopFitBtn.style.color = "var(--accent)";
+      applyDesktopFitScale(document.body.clientWidth, document.body.clientHeight);
+    } else {
+      syncZoomState();
+    }
     applyRefreshInterval();
 
     if (currentUrl) {
@@ -344,6 +355,7 @@ function persistToBrowserStorage() {
     window.localStorage.setItem(STORAGE_KEYS.isDark, String(state.isDark));
     window.localStorage.setItem(STORAGE_KEYS.zoom, String(state.zoom));
     window.localStorage.setItem(STORAGE_KEYS.refreshInterval, String(state.refreshInterval));
+    window.localStorage.setItem(STORAGE_KEYS.desktopFit, String(state.desktopFit));
     if (state.currentUrl) {
       window.localStorage.setItem(STORAGE_KEYS.currentUrl, state.currentUrl);
     }
