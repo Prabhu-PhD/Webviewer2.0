@@ -1,7 +1,10 @@
 const STORAGE_KEYS = {
   chromeVisible: "webviewer2.chromeVisible",
   currentUrl: "webviewer2.currentUrl",
-  recentUrls: "webviewer2.recentUrls"
+  recentUrls: "webviewer2.recentUrls",
+  isDark: "webviewer2.isDark",
+  zoom: "webviewer2.zoom",
+  refreshInterval: "webviewer2.refreshInterval"
 };
 
 const LOAD_TIMEOUT_MS = 9000;
@@ -25,6 +28,10 @@ const state = {
   chromeVisible: true,
   currentUrl: "",
   recentUrls: [],
+  isDark: false,
+  zoom: 1.0,
+  refreshInterval: 0,
+  refreshTimerId: null,
   isLoading: false,
   loadTimer: null,
   officeReady: false
@@ -66,6 +73,14 @@ function cacheUi() {
   ui.recentDropdown = document.getElementById("recent-dropdown");
   ui.recentList = document.getElementById("recent-list");
 
+  ui.refreshBtn = document.getElementById("refresh-btn");
+  ui.refreshDropdown = document.getElementById("refresh-dropdown");
+  ui.refreshList = document.getElementById("refresh-list");
+  ui.zoomInBtn = document.getElementById("zoom-in-btn");
+  ui.zoomOutBtn = document.getElementById("zoom-out-btn");
+  ui.popoutBtn = document.getElementById("popout-btn");
+  ui.themeBtn = document.getElementById("theme-btn");
+
   syncEmptyState();
 }
 
@@ -81,6 +96,13 @@ function bindEvents() {
   ui.qrCloseBtn.addEventListener("click", hideQrCode);
   ui.urlInput.addEventListener("focus", showRecentDropdown);
   document.addEventListener("click", handleDocumentClick);
+
+  ui.themeBtn.addEventListener("click", toggleTheme);
+  ui.zoomInBtn.addEventListener("click", zoomIn);
+  ui.zoomOutBtn.addEventListener("click", zoomOut);
+  ui.popoutBtn.addEventListener("click", openCurrentUrl);
+  ui.refreshBtn.addEventListener("click", () => ui.refreshDropdown.classList.toggle("is-hidden"));
+  ui.refreshList.addEventListener("click", handleRefreshOptionClick);
 }
 
 function handleOfficeReady() {
@@ -96,6 +118,13 @@ function hydrateFromBrowserStorage() {
     const chromeVisible = window.localStorage.getItem(STORAGE_KEYS.chromeVisible);
     const currentUrl = window.localStorage.getItem(STORAGE_KEYS.currentUrl);
     const recentUrlsStr = window.localStorage.getItem(STORAGE_KEYS.recentUrls);
+    const isDarkStr = window.localStorage.getItem(STORAGE_KEYS.isDark);
+    const zoomStr = window.localStorage.getItem(STORAGE_KEYS.zoom);
+    const refreshStr = window.localStorage.getItem(STORAGE_KEYS.refreshInterval);
+
+    if (isDarkStr) state.isDark = isDarkStr === "true";
+    if (zoomStr) state.zoom = parseFloat(zoomStr) || 1.0;
+    if (refreshStr) state.refreshInterval = parseInt(refreshStr, 10) || 0;
 
     if (recentUrlsStr) {
       try {
@@ -109,6 +138,9 @@ function hydrateFromBrowserStorage() {
     }
 
     syncChromeState();
+    syncThemeState();
+    syncZoomState();
+    applyRefreshInterval();
 
     if (currentUrl) {
       ui.urlInput.value = currentUrl;
@@ -309,6 +341,9 @@ function persistState() {
 function persistToBrowserStorage() {
   try {
     window.localStorage.setItem(STORAGE_KEYS.chromeVisible, String(state.chromeVisible));
+    window.localStorage.setItem(STORAGE_KEYS.isDark, String(state.isDark));
+    window.localStorage.setItem(STORAGE_KEYS.zoom, String(state.zoom));
+    window.localStorage.setItem(STORAGE_KEYS.refreshInterval, String(state.refreshInterval));
     if (state.currentUrl) {
       window.localStorage.setItem(STORAGE_KEYS.currentUrl, state.currentUrl);
     }
@@ -863,5 +898,77 @@ function showRecentDropdown() {
 function handleDocumentClick(event) {
   if (!ui.urlInput.contains(event.target) && !ui.recentDropdown.contains(event.target)) {
     ui.recentDropdown.classList.add("is-hidden");
+  }
+  if (!ui.refreshBtn.contains(event.target) && !ui.refreshDropdown.contains(event.target)) {
+    ui.refreshDropdown.classList.add("is-hidden");
+  }
+}
+
+/* ── New Features (Theme, Zoom, Refresh) ────────────────────────── */
+
+function toggleTheme() {
+  state.isDark = !state.isDark;
+  syncThemeState();
+  persistState();
+}
+
+function syncThemeState() {
+  ui.shell.classList.toggle("is-dark", state.isDark);
+}
+
+function zoomIn() {
+  state.zoom = Math.min(state.zoom + 0.1, 3.0);
+  syncZoomState();
+  persistState();
+}
+
+function zoomOut() {
+  state.zoom = Math.max(state.zoom - 0.1, 0.25);
+  syncZoomState();
+  persistState();
+}
+
+function syncZoomState() {
+  if (state.zoom === 1.0) {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+  } else {
+    ui.frame.style.transformOrigin = "top left";
+    ui.frame.style.transform = `scale(${state.zoom})`;
+    ui.frame.style.width = `${100 / state.zoom}%`;
+    ui.frame.style.height = `${100 / state.zoom}%`;
+  }
+}
+
+function handleRefreshOptionClick(e) {
+  const li = e.target.closest("li.recent-item");
+  if (!li) return;
+  
+  const val = parseInt(li.dataset.val, 10);
+  if (isNaN(val)) return;
+  
+  state.refreshInterval = val;
+  applyRefreshInterval();
+  persistState();
+  
+  ui.refreshDropdown.classList.add("is-hidden");
+}
+
+function applyRefreshInterval() {
+  if (state.refreshTimerId) {
+    clearInterval(state.refreshTimerId);
+    state.refreshTimerId = null;
+  }
+  
+  if (state.refreshInterval > 0) {
+    ui.refreshBtn.style.color = "var(--accent)";
+    state.refreshTimerId = setInterval(() => {
+      if (state.currentUrl && !state.isLoading) {
+        ui.frame.src = state.currentUrl;
+      }
+    }, state.refreshInterval);
+  } else {
+    ui.refreshBtn.style.color = "";
   }
 }

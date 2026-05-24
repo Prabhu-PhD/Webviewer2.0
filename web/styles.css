@@ -1,4 +1,12 @@
 :root {
+  --bg-color: transparent;
+  --panel-bg: #ffffff;
+  --border-color: #eee;
+  --hover-bg: #f9f9f9;
+  --overlay-bg: rgba(255, 255, 255, 0.95);
+  --btn-border: #ddd;
+  --btn-hover: #f0f0f0;
+
   --text-light: #222;
   --text-placeholder: #888;
   --accent: #e8844a; /* Orange */
@@ -6,6 +14,19 @@
   --toast-bg: rgba(24, 28, 38, 0.95);
   --empty-color: rgba(120, 125, 135, 0.5);
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.shell.is-dark {
+  --bg-color: #121212;
+  --panel-bg: #222222;
+  --border-color: #444444;
+  --hover-bg: #333333;
+  --overlay-bg: rgba(34, 34, 34, 0.95);
+  --btn-border: #444444;
+  --btn-hover: #333333;
+  --text-light: #eeeeee;
+  --text-placeholder: #aaaaaa;
+  --empty-color: rgba(255, 255, 255, 0.4);
 }
 
 * {
@@ -70,7 +91,7 @@ body {
   height: 44px;
   min-width: 0;
   padding: 0 16px;
-  background: #ffffff; /* White fill */
+  background: var(--panel-bg); /* White fill */
   border: 2px solid var(--accent); /* Orange outline */
   border-right: none; /* Connect to the button */
   border-radius: 0; /* Sharp corners */
@@ -111,8 +132,8 @@ body {
   width: 44px;
   height: 44px;
   flex-shrink: 0;
-  background: #ffffff;
-  border: 2px solid #ddd;
+  background: var(--panel-bg);
+  border: 2px solid var(--btn-border);
   border-radius: 0;
   color: #555;
   cursor: pointer;
@@ -121,7 +142,7 @@ body {
 }
 
 .toolbar-btn:hover {
-  background: #f0f0f0;
+  background: var(--btn-hover);
 }
 
 /* Hide the toggle button when in empty state centered view */
@@ -140,7 +161,7 @@ body {
   z-index: 11;
   overflow: hidden;
   opacity: 0;
-  background: #f0f0f0;
+  background: var(--btn-hover);
   transition: opacity 0.2s;
 }
 
@@ -203,8 +224,8 @@ body {
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: #ffffff;
-  border: 2px solid #ddd;
+  background: var(--panel-bg);
+  border: 2px solid var(--btn-border);
   border-radius: 0; /* Sharp corners */
   color: #555;
   box-shadow: var(--shadow);
@@ -213,7 +234,7 @@ body {
 }
 
 .floating-toggle:hover {
-  background: #f0f0f0;
+  background: var(--btn-hover);
 }
 
 /* ── Empty State ────────────────────────────────────────────────── */
@@ -226,7 +247,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #ffffff; /* Clean white background */
+  background: var(--panel-bg); /* Clean white background */
   transition: opacity 0.35s ease;
 }
 
@@ -252,7 +273,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--overlay-bg);
   transition: opacity 0.3s ease;
 }
 
@@ -265,9 +286,9 @@ body {
   max-width: 420px;
   width: 100%;
   padding: 32px;
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 0; /* Sharp corners */
-  border: 2px solid #ddd;
+  border: 2px solid var(--btn-border);
   text-align: center;
 }
 
@@ -293,7 +314,7 @@ body {
   text-align: left;
   margin: 20px 0;
   padding: 14px 16px;
-  background: #f9f9f9;
+  background: var(--hover-bg);
   border: 1px solid #eee;
 }
 
@@ -323,8 +344,8 @@ body {
   height: 40px;
   padding: 0 20px;
   border-radius: 0; /* Sharp corners */
-  border: 2px solid #ddd;
-  background: #fff;
+  border: 2px solid var(--btn-border);
+  background: var(--panel-bg);
   color: #222;
   font: inherit;
   font-size: 0.88rem;
@@ -333,7 +354,7 @@ body {
 }
 
 .block-btn:hover {
-  background: #f0f0f0;
+  background: var(--btn-hover);
 }
 
 .block-btn-primary {
@@ -356,7 +377,7 @@ body {
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
+  background: var(--panel-bg);
   touch-action: auto;
 }
 
@@ -419,7 +440,7 @@ body {
   top: 100%;
   left: 0;
   right: 0;
-  background: #ffffff;
+  background: var(--panel-bg);
   border: 2px solid var(--accent);
   border-top: none;
   z-index: 20;
@@ -438,8 +459,8 @@ body {
   font-weight: 600;
   color: var(--text-placeholder);
   text-transform: uppercase;
-  background: #f9f9f9;
-  border-bottom: 1px solid #eee;
+  background: var(--hover-bg);
+  border-bottom: 1px solid var(--border-color);
 }
 
 #recent-list {
@@ -455,7 +476,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   transition: background 0.15s;
 }
 
@@ -464,7 +485,7 @@ body {
 }
 
 .recent-item:hover {
-  background: #fff5ee;
+  background: var(--hover-bg);
 }
 
 .qr-overlay {
@@ -475,7 +496,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--overlay-bg);
   transition: opacity 0.3s ease;
 }
 
