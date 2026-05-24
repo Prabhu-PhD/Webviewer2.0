@@ -704,14 +704,21 @@ function adaptMiroUrl(url) {
 }
 
 function adaptCanvaUrl(url) {
-  if (url.pathname.startsWith("/design/") && url.pathname.endsWith("/view")) {
-    const embedUrl = new URL(url.toString());
-    embedUrl.searchParams.set("embed", "");
-    return {
-      note: "Converted to Canva embed.",
-      providerName: "Canva",
-      url: embedUrl
-    };
+  if (url.pathname.startsWith("/design/")) {
+    let embedUrl = new URL(url.toString());
+    
+    if (url.pathname.endsWith("/edit") || url.pathname.endsWith("/watch")) {
+      embedUrl.pathname = url.pathname.replace(/\/(edit|watch)$/, "/view");
+    }
+    
+    if (embedUrl.pathname.endsWith("/view")) {
+      embedUrl.searchParams.set("embed", "");
+      return {
+        note: "Converted to Canva embed.",
+        providerName: "Canva",
+        url: embedUrl
+      };
+    }
   }
   return { note: "", providerName: "Canva", url };
 }
