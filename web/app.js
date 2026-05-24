@@ -446,6 +446,10 @@ function adaptProviderUrl(url) {
     return adaptCanvaUrl(url);
   }
 
+  if (hostname === "canva.link") {
+    throw new Error("Canva short links cannot be embedded directly. Open it in your browser and copy the full link.");
+  }
+
   if (hostname === "airtable.com") {
     return adaptAirtableUrl(url);
   }
