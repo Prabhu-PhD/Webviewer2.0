@@ -1,6 +1,7 @@
 const STORAGE_KEYS = {
   chromeVisible: "webviewer2.chromeVisible",
-  currentUrl: "webviewer2.currentUrl"
+  currentUrl: "webviewer2.currentUrl",
+  recentUrls: "webviewer2.recentUrls"
 };
 
 const LOAD_TIMEOUT_MS = 9000;
@@ -23,6 +24,7 @@ const KNOWN_BLOCKED_DOMAINS = [
 const state = {
   chromeVisible: true,
   currentUrl: "",
+  recentUrls: [],
   isLoading: false,
   loadTimer: null,
   officeReady: false
@@ -57,6 +59,13 @@ function cacheUi() {
   ui.toast = document.getElementById("toast");
   ui.urlInput = document.getElementById("url-input");
 
+  ui.qrBtn = document.getElementById("qr-btn");
+  ui.qrOverlay = document.getElementById("qr-overlay");
+  ui.qrCanvas = document.getElementById("qr-canvas");
+  ui.qrCloseBtn = document.getElementById("qr-close-btn");
+  ui.recentDropdown = document.getElementById("recent-dropdown");
+  ui.recentList = document.getElementById("recent-list");
+
   syncEmptyState();
 }
 
@@ -67,6 +76,11 @@ function bindEvents() {
   ui.frame.addEventListener("load", handleFrameLoaded);
   ui.blockOpenBtn.addEventListener("click", openCurrentUrl);
   ui.blockDismissBtn.addEventListener("click", dismissBlockOverlay);
+
+  ui.qrBtn.addEventListener("click", showQrCode);
+  ui.qrCloseBtn.addEventListener("click", hideQrCode);
+  ui.urlInput.addEventListener("focus", showRecentDropdown);
+  document.addEventListener("click", handleDocumentClick);
 }
 
 function handleOfficeReady() {
@@ -81,6 +95,14 @@ function hydrateFromBrowserStorage() {
   try {
     const chromeVisible = window.localStorage.getItem(STORAGE_KEYS.chromeVisible);
     const currentUrl = window.localStorage.getItem(STORAGE_KEYS.currentUrl);
+    const recentUrlsStr = window.localStorage.getItem(STORAGE_KEYS.recentUrls);
+
+    if (recentUrlsStr) {
+      try {
+        state.recentUrls = JSON.parse(recentUrlsStr);
+        renderRecentUrls();
+      } catch (e) {}
+    }
 
     if (chromeVisible !== null) {
       state.chromeVisible = chromeVisible === "true";
@@ -121,8 +143,22 @@ function hydrateFromDocumentSettings() {
 function handleLoadSubmit(event) {
   event.preventDefault();
 
+  const rawInput = ui.urlInput.value.trim();
+  
+  if (!rawInput) {
+    return;
+  }
+  
+  // Smart URL Validation
+  const looksLikeUrl = /^((https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}|<iframe\s)/i.test(rawInput);
+  if (!looksLikeUrl) {
+    showToast("Please enter a valid link or iframe snippet.", "warning");
+    return;
+  }
+
   try {
-    loadIntoFrame(ui.urlInput.value);
+    loadIntoFrame(rawInput);
+    saveRecentUrl(rawInput);
   } catch (error) {
     const message = error instanceof Error ? error.message : "The URL could not be loaded.";
     showToast(message, "error");
@@ -402,6 +438,26 @@ function adaptProviderUrl(url) {
     return adaptFigmaUrl(url);
   }
 
+  if (hostname === "miro.com") {
+    return adaptMiroUrl(url);
+  }
+
+  if (hostname === "canva.com" || hostname === "www.canva.com") {
+    return adaptCanvaUrl(url);
+  }
+
+  if (hostname === "airtable.com") {
+    return adaptAirtableUrl(url);
+  }
+
+  if (hostname === "codepen.io") {
+    return adaptCodePenUrl(url);
+  }
+
+  if (hostname === "open.spotify.com") {
+    return adaptSpotifyUrl(url);
+  }
+
   return {
     note: "",
     providerName: formatProviderName(hostname),
@@ -596,6 +652,72 @@ function adaptFigmaUrl(url) {
   };
 }
 
+function adaptMiroUrl(url) {
+  if (url.pathname.startsWith("/app/board/")) {
+    const embedUrl = new URL(url.toString().replace("/app/board/", "/app/live-embed/"));
+    return {
+      note: "Converted to Miro embed.",
+      providerName: "Miro",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Miro", url };
+}
+
+function adaptCanvaUrl(url) {
+  if (url.pathname.startsWith("/design/") && url.pathname.endsWith("/view")) {
+    const embedUrl = new URL(url.toString());
+    embedUrl.searchParams.set("embed", "");
+    return {
+      note: "Converted to Canva embed.",
+      providerName: "Canva",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Canva", url };
+}
+
+function adaptAirtableUrl(url) {
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  if (pathParts[0] && pathParts[0].startsWith("shr")) {
+    const embedUrl = new URL(`https://airtable.com/embed/${pathParts[0]}`);
+    embedUrl.search = url.search;
+    return {
+      note: "Converted to Airtable embed.",
+      providerName: "Airtable",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Airtable", url };
+}
+
+function adaptCodePenUrl(url) {
+  if (url.pathname.includes("/pen/")) {
+    const embedUrl = new URL(url.toString().replace("/pen/", "/embed/"));
+    return {
+      note: "Converted to CodePen embed.",
+      providerName: "CodePen",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "CodePen", url };
+}
+
+function adaptSpotifyUrl(url) {
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  if (pathParts.length >= 2 && !pathParts.includes("embed")) {
+    const type = pathParts[0]; // track, album, playlist, episode
+    const id = pathParts[1];
+    const embedUrl = new URL(`https://open.spotify.com/embed/${type}/${id}`);
+    return {
+      note: "Converted to Spotify embed.",
+      providerName: "Spotify",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Spotify", url };
+}
+
 /* ── Utilities ──────────────────────────────────────────────────── */
 
 function normalizeHostname(hostname) {
@@ -652,5 +774,90 @@ function safelyHydrateUrl(value) {
     loadIntoFrame(value, { persist: false, silent: true });
   } catch (error) {
     console.warn("Saved URL could not be restored.", error);
+  }
+}
+
+/* ── QR Code ────────────────────────────────────────────────────── */
+
+function showQrCode() {
+  if (!state.currentUrl) {
+    showToast("Load a URL first to generate a QR code.", "warning");
+    return;
+  }
+  
+  try {
+    if (window.QRious) {
+      new QRious({
+        element: ui.qrCanvas,
+        value: state.currentUrl,
+        size: 200,
+        background: 'white',
+        foreground: 'black'
+      });
+      ui.qrOverlay.classList.remove("is-hidden");
+    } else {
+      showToast("QR code library not loaded.", "error");
+    }
+  } catch (e) {
+    showToast("Could not generate QR code.", "error");
+  }
+}
+
+function hideQrCode() {
+  ui.qrOverlay.classList.add("is-hidden");
+}
+
+/* ── Recent Links ───────────────────────────────────────────────── */
+
+function saveRecentUrl(url) {
+  if (!url) return;
+  
+  state.recentUrls = state.recentUrls.filter(u => u !== url);
+  state.recentUrls.unshift(url);
+  
+  if (state.recentUrls.length > 5) {
+    state.recentUrls = state.recentUrls.slice(0, 5);
+  }
+  
+  window.localStorage.setItem(STORAGE_KEYS.recentUrls, JSON.stringify(state.recentUrls));
+  renderRecentUrls();
+}
+
+function renderRecentUrls() {
+  ui.recentList.innerHTML = "";
+  
+  if (state.recentUrls.length === 0) {
+    const li = document.createElement("li");
+    li.className = "recent-item";
+    li.style.color = "var(--text-placeholder)";
+    li.style.pointerEvents = "none";
+    li.textContent = "No recent links";
+    ui.recentList.appendChild(li);
+    return;
+  }
+  
+  state.recentUrls.forEach(url => {
+    const li = document.createElement("li");
+    li.className = "recent-item";
+    li.textContent = url;
+    li.title = url;
+    li.addEventListener("click", () => {
+      ui.urlInput.value = url;
+      ui.recentDropdown.classList.add("is-hidden");
+      ui.loadForm.dispatchEvent(new Event("submit", { cancelable: true }));
+    });
+    ui.recentList.appendChild(li);
+  });
+}
+
+function showRecentDropdown() {
+  if (ui.urlInput.value.trim() === "") {
+    ui.recentDropdown.classList.remove("is-hidden");
+  }
+}
+
+function handleDocumentClick(event) {
+  if (!ui.urlInput.contains(event.target) && !ui.recentDropdown.contains(event.target)) {
+    ui.recentDropdown.classList.add("is-hidden");
   }
 }

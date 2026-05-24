@@ -9,15 +9,30 @@
 <body>
   <main class="shell" id="shell">
     <div class="toolbar" id="toolbar">
-      <form class="address-bar" id="load-form" autocomplete="off">
-        <input
-          id="url-input"
-          type="text"
-          placeholder="Paste a URL or embed snippet"
-          autocomplete="off"
-          spellcheck="false" />
-        <button class="go-btn" type="submit">Go</button>
-      </form>
+      <div class="address-container">
+        <form class="address-bar" id="load-form" autocomplete="off">
+          <input
+            id="url-input"
+            type="text"
+            placeholder="Paste a URL or embed snippet"
+            autocomplete="off"
+            spellcheck="false" />
+          <button class="go-btn" type="submit">Go</button>
+        </form>
+        <div class="recent-dropdown is-hidden" id="recent-dropdown">
+          <div class="recent-header">Recent Links</div>
+          <ul id="recent-list"></ul>
+        </div>
+      </div>
+      <button class="toolbar-btn" id="qr-btn" type="button" title="Show QR Code" aria-label="Show QR Code">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+          <path d="M9 3v7M15 3v7M15 14v7M9 14v7M3 9h7M14 9h7M14 15h7M3 15h7"></path>
+        </svg>
+      </button>
       <button class="toolbar-btn" id="hide-btn" type="button" title="Hide toolbar" aria-label="Hide toolbar">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -72,6 +87,16 @@
       </div>
     </div>
 
+    <div class="qr-overlay is-hidden" id="qr-overlay">
+      <div class="block-card qr-card">
+        <h2>Scan this link</h2>
+        <canvas id="qr-canvas"></canvas>
+        <div class="block-actions">
+          <button class="block-btn" id="qr-close-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
     <iframe
       id="viewer-frame"
       title="Embedded website"
@@ -81,6 +106,7 @@
   </main>
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script src="./qrious.min.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

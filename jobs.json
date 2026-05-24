@@ -1,0 +1,97 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 77592379100,
+      "run_id": 26359535726,
+      "workflow_name": "Deploy to GitHub Pages",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/Prabhu-PhD/Webviewer2.0/actions/runs/26359535726",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOSmXSW88AAAASEN2-3A",
+      "head_sha": "74ebdad50b44e6daa244333f342409e5fb0359b9",
+      "url": "https://api.github.com/repos/Prabhu-PhD/Webviewer2.0/actions/jobs/77592379100",
+      "html_url": "https://github.com/Prabhu-PhD/Webviewer2.0/actions/runs/26359535726/job/77592379100",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-05-24T11:06:01Z",
+      "started_at": "2026-05-24T11:06:06Z",
+      "completed_at": "2026-05-24T11:06:10Z",
+      "name": "deploy",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-05-24T11:06:06Z",
+          "completed_at": "2026-05-24T11:06:08Z"
+        },
+        {
+          "name": "Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-05-24T11:06:08Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        },
+        {
+          "name": "Prepare build directory",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 3,
+          "started_at": "2026-05-24T11:06:09Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        },
+        {
+          "name": "Setup Pages",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 4,
+          "started_at": "2026-05-24T11:06:09Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        },
+        {
+          "name": "Upload artifact",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-05-24T11:06:09Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        },
+        {
+          "name": "Deploy to GitHub Pages",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-05-24T11:06:09Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        },
+        {
+          "name": "Post Checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-05-24T11:06:09Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-05-24T11:06:09Z",
+          "completed_at": "2026-05-24T11:06:09Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Prabhu-PhD/Webviewer2.0/check-runs/77592379100",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000351,
+      "runner_name": "GitHub Actions 1000000351",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
