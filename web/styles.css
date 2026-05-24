@@ -400,12 +400,6 @@ body {
 
 /* ── Slideshow Mode (overrides chrome toggle) ───────────────────── */
 
-.shell[data-view="read"] .toolbar {
-  opacity: 0;
-  transform: translateY(-12px);
-  pointer-events: none;
-}
-
 .shell[data-view="read"] .floating-toggle {
   display: none;
 }
