@@ -8,16 +8,16 @@ const LOAD_TIMEOUT_MS = 9000;
 // Sites we know will absolutely refuse to load in an iframe due to X-Frame-Options or CSP frame-ancestors.
 // This saves the user 9 seconds of waiting for a timeout.
 const KNOWN_BLOCKED_DOMAINS = [
-  "google.com", "www.google.com",
-  "facebook.com", "www.facebook.com",
-  "twitter.com", "x.com",
-  "github.com",
-  "reddit.com", "www.reddit.com",
-  "amazon.com", "www.amazon.com",
-  "apple.com", "www.apple.com",
-  "microsoft.com", "www.microsoft.com",
-  "linkedin.com", "www.linkedin.com",
-  "instagram.com", "www.instagram.com"
+  "google", "google.com", "www.google.com",
+  "facebook", "facebook.com", "www.facebook.com",
+  "twitter", "twitter.com", "x.com",
+  "github", "github.com",
+  "reddit", "reddit.com", "www.reddit.com",
+  "amazon", "amazon.com", "www.amazon.com",
+  "apple", "apple.com", "www.apple.com",
+  "microsoft", "microsoft.com", "www.microsoft.com",
+  "linkedin", "linkedin.com", "www.linkedin.com",
+  "instagram", "instagram.com", "www.instagram.com"
 ];
 
 const state = {
