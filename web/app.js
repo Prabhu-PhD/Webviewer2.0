@@ -273,6 +273,8 @@ function loadIntoFrame(rawInput, options = {}) {
 
   // Force inline grid styles to prevent CSS caching issues
   ui.frame.style.display = "grid";
+  ui.frame.style.flex = "1";
+  ui.frame.style.minHeight = "0";
   ui.frame.style.gap = "2px";
   ui.frame.style.background = "var(--btn-border, #444)";
   if (urlStrings.length === 1) {
@@ -418,7 +420,7 @@ function syncEmptyState() {
   ui.shell.classList.toggle("is-empty", !state.currentUrl);
 }
 
-function syncActiveView() {
+function syncActiveView(options = {}) {
   if (!Office?.context?.document?.getActiveViewAsync) {
     ui.shell.dataset.view = "edit";
     return;
@@ -432,6 +434,41 @@ function syncActiveView() {
 
     const nextView = String(result.value).toLowerCase() === "read" ? "read" : "edit";
     ui.shell.dataset.view = nextView;
+    
+    if (nextView === "read") {
+      document.body.classList.add("is-presentation");
+      ui.chrome.classList.add("is-hidden");
+      ui.toolbar.classList.add("is-hidden");
+      
+      if (typeof clearCanvas === "function") clearCanvas();
+      hideBlockOverlay();
+      
+      if (!options.isInitial) {
+        forceRefresh();
+      }
+    } else {
+      document.body.classList.remove("is-presentation");
+      ui.toolbar.classList.remove("is-hidden");
+      syncChromeState();
+      
+      if (!options.isInitial) {
+        forceRefresh();
+      }
+    }
+  });
+}
+
+function forceRefresh() {
+  const iframes = ui.frame.querySelectorAll("iframe");
+  iframes.forEach(iframe => {
+    const newIframe = document.createElement("iframe");
+    newIframe.src = iframe.src;
+    newIframe.allow = iframe.allow;
+    newIframe.referrerPolicy = iframe.referrerPolicy;
+    newIframe.style.cssText = iframe.style.cssText;
+    
+    // Replace cleanly to avoid about:blank crashes
+    iframe.replaceWith(newIframe);
   });
 }
 

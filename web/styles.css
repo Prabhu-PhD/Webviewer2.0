@@ -522,3 +522,63 @@ body {
     padding: 0 14px;
   }
 }
+
+/* ── Advanced Tools ─────────────────────────────────────────────── */
+
+.safe-mode-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: transparent;
+}
+.safe-mode-overlay.is-hidden {
+  display: none;
+}
+
+.draw-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.draw-canvas.is-hidden {
+  display: none;
+  pointer-events: none;
+}
+
+iframe.smart-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.toolbar .divider {
+  width: 1px;
+  height: 24px;
+  background: var(--btn-border);
+  margin: 0 4px;
+}
+
+/* ── Grid Container (Command Center) ───────────────────────────── */
+
+.grid-container {
+  display: grid;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  gap: 2px;
+  background: var(--btn-border);
+}
+
+.grid-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+.grid-container[data-count="1"] { grid-template-columns: 1fr; }
+.grid-container[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.grid-container[data-count="3"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.grid-container[data-count="4"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
