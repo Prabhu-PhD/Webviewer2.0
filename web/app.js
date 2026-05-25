@@ -254,6 +254,21 @@ function loadIntoFrame(rawInput, options = {}) {
   const urlStrings = inputUrlString.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
   ui.frame.dataset.count = urlStrings.length;
 
+  // Force inline grid styles to prevent CSS caching issues
+  ui.frame.style.display = "grid";
+  ui.frame.style.gap = "2px";
+  ui.frame.style.background = "var(--btn-border, #444)";
+  if (urlStrings.length === 1) {
+    ui.frame.style.gridTemplateColumns = "1fr";
+    ui.frame.style.gridTemplateRows = "1fr";
+  } else if (urlStrings.length === 2) {
+    ui.frame.style.gridTemplateColumns = "1fr 1fr";
+    ui.frame.style.gridTemplateRows = "1fr";
+  } else {
+    ui.frame.style.gridTemplateColumns = "1fr 1fr";
+    ui.frame.style.gridTemplateRows = "1fr 1fr";
+  }
+
   let hasErrors = false;
   state.isLoading = true;
   ui.loadingBar.classList.add("is-active");
@@ -282,6 +297,14 @@ function loadIntoFrame(rawInput, options = {}) {
     iframe.src = request.normalizedUrl;
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    
+    // Force inline iframe styles
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    iframe.style.border = "none";
+    iframe.style.background = "#fff";
+    iframe.style.minHeight = "0"; // prevent flex/grid blowout
+    
     iframe.addEventListener("load", handleFrameLoaded);
     ui.frame.appendChild(iframe);
 
