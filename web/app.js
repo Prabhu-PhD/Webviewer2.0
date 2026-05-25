@@ -233,31 +233,69 @@ function handleLoadSubmit(event) {
 
 function loadIntoFrame(rawInput, options = {}) {
   const { persist = true, silent = false } = options;
-  const request = prepareEmbedRequest(rawInput);
-
-  state.currentUrl = request.normalizedUrl;
-  ui.urlInput.value = request.normalizedUrl;
+  const inputUrlString = String(rawInput ?? "").trim();
+  
+  state.currentUrl = inputUrlString;
+  ui.urlInput.value = inputUrlString;
   
   syncEmptyState();
-  ui.emptyState.classList.add("is-hidden");
   hideBlockOverlay();
 
-  // Instant blocklist check
-  if (isKnownBlockedDomain(request.hostname)) {
-    showBlockOverlay();
+  ui.frame.innerHTML = ""; // Clear existing grid
+
+  if (!inputUrlString) {
+    ui.emptyState.classList.remove("is-hidden");
     return;
   }
+  
+  ui.emptyState.classList.add("is-hidden");
 
+  // Split by comma, up to 4 URLs
+  const urlStrings = inputUrlString.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
+  ui.frame.dataset.count = urlStrings.length;
+
+  let hasErrors = false;
   state.isLoading = true;
   ui.loadingBar.classList.add("is-active");
-  ui.frame.src = request.normalizedUrl;
+
+  urlStrings.forEach(urlString => {
+    let request;
+    try {
+      request = prepareEmbedRequest(urlString);
+    } catch (e) {
+      if (urlStrings.length === 1) {
+        throw e;
+      }
+      hasErrors = true;
+      return;
+    }
+
+    if (isKnownBlockedDomain(request.hostname)) {
+      if (urlStrings.length === 1) {
+        showBlockOverlay();
+      }
+      hasErrors = true;
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.src = request.normalizedUrl;
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    iframe.addEventListener("load", handleFrameLoaded);
+    ui.frame.appendChild(iframe);
+
+    if (!silent && request.note && urlStrings.length === 1) {
+      showToast(request.note, "info");
+    }
+  });
+
+  if (hasErrors && urlStrings.length > 1) {
+    showToast("One or more links could not be loaded.", "warning");
+  }
 
   clearTimeout(state.loadTimer);
   state.loadTimer = window.setTimeout(handleLoadTimeout, LOAD_TIMEOUT_MS);
-
-  if (!silent && request.note) {
-    showToast(request.note, "info");
-  }
 
   if (persist) {
     persistState();
@@ -1018,11 +1056,27 @@ function applyRefreshInterval() {
     ui.refreshBtn.style.color = "var(--accent)";
     state.refreshTimerId = setInterval(() => {
       if (state.currentUrl && !state.isLoading) {
-        ui.frame.src = state.currentUrl;
+        forceRefresh();
       }
     }, state.refreshInterval);
   } else {
     ui.refreshBtn.style.color = "";
+  }
+}
+
+function forceRefresh() {
+  const iframes = ui.frame.querySelectorAll("iframe");
+  iframes.forEach(iframe => {
+    const currentSrc = iframe.src;
+    iframe.src = "about:blank";
+    setTimeout(() => {
+      iframe.src = currentSrc;
+    }, 50);
+  });
+  
+  if (iframes.length > 0) {
+    ui.loadingBar.classList.add("is-active");
+    setTimeout(() => ui.loadingBar.classList.remove("is-active"), 1200);
   }
 }
 
