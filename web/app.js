@@ -129,10 +129,27 @@ function bindEvents() {
 
 function handleOfficeReady() {
   state.officeReady = true;
-  hydrateFromDocumentSettings();
-  syncChromeState();
-  syncActiveView();
-  registerActiveViewChanged();
+  
+  if (Office?.context?.document?.getActiveViewAsync) {
+    Office.context.document.getActiveViewAsync((result) => {
+      let delay = 0;
+      if (result.status === Office.AsyncResultStatus.Succeeded && String(result.value).toLowerCase() === "read") {
+        delay = 600; // Wait for slide show transition to finish before initializing WebGL/iframes
+      }
+      
+      setTimeout(() => {
+        hydrateFromDocumentSettings();
+        syncChromeState();
+        syncActiveView();
+        registerActiveViewChanged();
+      }, delay);
+    });
+  } else {
+    hydrateFromDocumentSettings();
+    syncChromeState();
+    syncActiveView();
+    registerActiveViewChanged();
+  }
 }
 
 function hydrateFromBrowserStorage() {
