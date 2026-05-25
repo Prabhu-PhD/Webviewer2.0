@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Slide Web Viewer</title>
-  <link rel="stylesheet" href="./styles.css?v=6">
+  <link rel="stylesheet" href="./styles.css?v=7">
 </head>
 <body>
   <main class="shell" id="shell">
@@ -140,16 +140,11 @@
       </div>
     </div>
 
-    <iframe
-      id="viewer-frame"
-      title="Embedded website"
-      src="about:blank"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
-      referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    <div id="viewer-frame" class="grid-container"></div>
   </main>
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="./qrious.min.js"></script>
-  <script type="module" src="./app.js?v=6"></script>
+  <script type="module" src="./app.js?v=7"></script>
 </body>
 </html>
