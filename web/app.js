@@ -203,24 +203,28 @@ function hydrateFromBrowserStorage() {
 }
 
 function hydrateFromDocumentSettings() {
-  const settings = Office?.context?.document?.settings;
+  if (!Office?.context?.document?.settings) return;
 
-  if (!settings) {
-    return;
-  }
+  const settings = Office.context.document.settings;
+  
+  settings.refreshAsync((result) => {
+    if (result.status === Office.AsyncResultStatus.Failed) {
+      console.warn("Failed to refresh document settings", result.error);
+    }
+    
+    const savedChromeVisible = settings.get(STORAGE_KEYS.chromeVisible);
+    if (typeof savedChromeVisible === "boolean") {
+      state.chromeVisible = savedChromeVisible;
+      syncChromeState();
+    }
 
-  const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
-  const savedChromeVisible = settings.get(STORAGE_KEYS.chromeVisible);
-
-  if (typeof savedChromeVisible === "boolean") {
-    state.chromeVisible = savedChromeVisible;
-    syncChromeState();
-  }
-
-  if (typeof savedUrl === "string" && savedUrl.trim()) {
-    ui.urlInput.value = savedUrl;
-    safelyHydrateUrl(savedUrl);
-  }
+    const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
+    if (typeof savedUrl === "string" && savedUrl.trim()) {
+      state.currentUrl = savedUrl;
+      ui.urlInput.value = savedUrl;
+      safelyHydrateUrl(savedUrl);
+    }
+  });
 }
 
 function handleLoadSubmit(event) {
