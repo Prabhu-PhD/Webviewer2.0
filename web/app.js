@@ -466,10 +466,15 @@ function forceRefresh() {
     newIframe.allow = iframe.allow;
     newIframe.referrerPolicy = iframe.referrerPolicy;
     newIframe.style.cssText = iframe.style.cssText;
+    newIframe.addEventListener("load", handleFrameLoaded);
     
     // Replace cleanly to avoid about:blank crashes
     iframe.replaceWith(newIframe);
   });
+  
+  if (iframes.length > 0) {
+    ui.loadingBar.classList.add("is-active");
+  }
 }
 
 function registerActiveViewChanged() {
@@ -1138,22 +1143,6 @@ function applyRefreshInterval() {
     }, state.refreshInterval);
   } else {
     ui.refreshBtn.style.color = "";
-  }
-}
-
-function forceRefresh() {
-  const iframes = ui.frame.querySelectorAll("iframe");
-  iframes.forEach(iframe => {
-    const currentSrc = iframe.src;
-    iframe.src = "about:blank";
-    setTimeout(() => {
-      iframe.src = currentSrc;
-    }, 50);
-  });
-  
-  if (iframes.length > 0) {
-    ui.loadingBar.classList.add("is-active");
-    setTimeout(() => ui.loadingBar.classList.remove("is-active"), 1200);
   }
 }
 
