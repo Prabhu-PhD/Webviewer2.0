@@ -86,6 +86,7 @@ function cacheUi() {
   ui.refreshList = document.getElementById("refresh-list");
   ui.zoomInBtn = document.getElementById("zoom-in-btn");
   ui.zoomOutBtn = document.getElementById("zoom-out-btn");
+  ui.zoomLevelBtn = document.getElementById("zoom-level-btn");
   ui.desktopFitBtn = document.getElementById("desktop-fit-btn");
   ui.safeModeBtn = document.getElementById("safe-mode-btn");
   ui.drawModeBtn = document.getElementById("draw-mode-btn");
@@ -95,6 +96,8 @@ function cacheUi() {
   ui.drawCanvas = document.getElementById("draw-canvas");
   ui.popoutBtn = document.getElementById("popout-btn");
   ui.themeBtn = document.getElementById("theme-btn");
+  ui.moreBtn = document.getElementById("more-btn");
+  ui.moreDropdown = document.getElementById("more-dropdown");
 
   syncEmptyState();
 }
@@ -114,6 +117,8 @@ function bindEvents() {
   ui.themeBtn.addEventListener("click", toggleTheme);
   ui.zoomInBtn.addEventListener("click", zoomIn);
   ui.zoomOutBtn.addEventListener("click", zoomOut);
+  ui.zoomLevelBtn.addEventListener("click", resetZoom);
+  ui.moreBtn.addEventListener("click", () => ui.moreDropdown.classList.toggle("is-hidden"));
   ui.desktopFitBtn.addEventListener("click", toggleDesktopFit);
   ui.safeModeBtn.addEventListener("click", toggleSafeMode);
   ui.drawModeBtn.addEventListener("click", toggleDrawMode);
@@ -195,9 +200,8 @@ function hydrateFromBrowserStorage() {
     if (state.desktopFit) {
       ui.desktopFitBtn.style.color = "var(--accent)";
       applyDesktopFitScale(document.body.clientWidth);
-    } else {
-      syncZoomState();
     }
+    syncZoomState();
     syncAdvancedTools();
     applyRefreshInterval();
 
@@ -1099,6 +1103,9 @@ function handleDocumentClick(event) {
   if (!ui.refreshBtn.contains(event.target) && !ui.refreshDropdown.contains(event.target)) {
     ui.refreshDropdown.classList.add("is-hidden");
   }
+  if (!ui.moreBtn.contains(event.target) && !ui.moreDropdown.contains(event.target)) {
+    ui.moreDropdown.classList.add("is-hidden");
+  }
 }
 
 /* ── New Features (Theme, Zoom, Refresh) ────────────────────────── */
@@ -1111,6 +1118,7 @@ function toggleTheme() {
 
 function syncThemeState() {
   ui.shell.classList.toggle("is-dark", state.isDark);
+  syncMoreBtnState();
 }
 
 function zoomIn() {
@@ -1125,7 +1133,16 @@ function zoomOut() {
   persistState();
 }
 
+function resetZoom() {
+  state.zoom = 1.0;
+  syncZoomState();
+  persistState();
+}
+
 function syncZoomState() {
+  if (ui.zoomLevelBtn) {
+    ui.zoomLevelBtn.textContent = state.desktopFit ? "Fit" : `${Math.round(state.zoom * 100)}%`;
+  }
   if (state.desktopFit) return;
   if (state.zoom === 1.0) {
     ui.frame.style.transform = "";
@@ -1148,8 +1165,9 @@ function toggleDesktopFit() {
     ui.frame.style.transform = "";
     ui.frame.style.width = "100%";
     ui.frame.style.height = "100%";
-    syncZoomState();
   }
+  syncZoomState();
+  syncMoreBtnState();
   persistState();
 }
 
@@ -1227,6 +1245,13 @@ function syncAdvancedTools() {
     ui.invertBtn.style.color = "";
     ui.frame.classList.remove("smart-invert");
   }
+
+  syncMoreBtnState();
+}
+
+function syncMoreBtnState() {
+  const anyActive = state.desktopFit || state.safeMode || state.drawMode || state.invertTheme || state.isDark;
+  ui.moreBtn.style.color = anyActive ? "var(--accent)" : "";
 }
 
 function toggleSafeMode() {

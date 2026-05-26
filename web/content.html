@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Webviewer 2.0</title>
-  <link rel="stylesheet" href="./styles.css?v=10">
+  <link rel="stylesheet" href="./styles.css?v=11">
 </head>
 <body>
   <main class="shell" id="shell">
@@ -24,18 +24,21 @@
           <ul id="recent-list"></ul>
         </div>
       </div>
-      <button class="toolbar-btn" id="refresh-btn" type="button" title="Auto-Refresh" aria-label="Auto-Refresh">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-        </svg>
-      </button>
-      <div class="recent-dropdown is-hidden" id="refresh-dropdown" style="right: 150px; left: auto; min-width: 120px;">
-        <ul id="refresh-list">
-          <li class="recent-item" data-val="0">Auto-Refresh: Off</li>
-          <li class="recent-item" data-val="30000">Every 30s</li>
-          <li class="recent-item" data-val="60000">Every 1m</li>
-          <li class="recent-item" data-val="300000">Every 5m</li>
-        </ul>
+
+      <div class="refresh-container">
+        <button class="toolbar-btn" id="refresh-btn" type="button" title="Auto-Refresh" aria-label="Auto-Refresh">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <div class="recent-dropdown is-hidden" id="refresh-dropdown">
+          <ul id="refresh-list">
+            <li class="recent-item" data-val="0">Auto-Refresh: Off</li>
+            <li class="recent-item" data-val="30000">Every 30s</li>
+            <li class="recent-item" data-val="60000">Every 1m</li>
+            <li class="recent-item" data-val="300000">Every 5m</li>
+          </ul>
+        </div>
       </div>
 
       <button class="toolbar-btn" id="zoom-out-btn" type="button" title="Zoom Out" aria-label="Zoom Out">
@@ -43,44 +46,16 @@
           <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line>
         </svg>
       </button>
+      <button class="toolbar-btn zoom-level-btn" id="zoom-level-btn" type="button" title="Reset zoom to 100%" aria-label="Reset zoom">100%</button>
       <button class="toolbar-btn" id="zoom-in-btn" type="button" title="Zoom In" aria-label="Zoom In" style="margin-left: 0; border-left: none;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line>
         </svg>
       </button>
-      <button class="toolbar-btn" id="desktop-fit-btn" type="button" title="Auto-Fit Desktop Layout" aria-label="Auto-Fit Desktop Layout">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-      </button>
 
-      <button class="toolbar-btn" id="safe-mode-btn" type="button" title="Safe Mode – block clicks on content" aria-label="Safe Mode">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-      </button>
-      <button class="toolbar-btn" id="draw-mode-btn" type="button" title="Draw Mode" aria-label="Draw Mode">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
-        </svg>
-      </button>
-      <button class="toolbar-btn is-hidden" id="clear-draw-btn" type="button" title="Clear Drawing" aria-label="Clear Drawing">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-      <button class="toolbar-btn" id="invert-btn" type="button" title="Invert Content Colors" aria-label="Invert Content Colors">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path fill="currentColor" stroke="none" d="M12 3a9 9 0 0 0 0 18z"/>
-        </svg>
-      </button>
       <button class="toolbar-btn" id="popout-btn" type="button" title="Open in Browser" aria-label="Open in Browser">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>
-        </svg>
-      </button>
-
-            <button class="toolbar-btn" id="theme-btn" type="button" title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
         </svg>
       </button>
 
@@ -93,6 +68,41 @@
           <path d="M9 3v7M15 3v7M15 14v7M9 14v7M3 9h7M14 9h7M14 15h7M3 15h7"></path>
         </svg>
       </button>
+
+      <div class="more-container">
+        <button class="toolbar-btn" id="more-btn" type="button" title="More tools" aria-label="More tools">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+          </svg>
+        </button>
+        <div class="more-dropdown is-hidden" id="more-dropdown">
+          <button class="more-item" id="desktop-fit-btn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            <span>Desktop View</span>
+          </button>
+          <button class="more-item" id="safe-mode-btn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Presentation Lock</span>
+          </button>
+          <button class="more-item" id="draw-mode-btn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            <span>Draw Mode</span>
+          </button>
+          <button class="more-item is-hidden" id="clear-draw-btn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            <span>Clear Drawing</span>
+          </button>
+          <button class="more-item" id="invert-btn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path fill="currentColor" stroke="none" d="M12 3a9 9 0 0 0 0 18z"/></svg>
+            <span>Invert Colors</span>
+          </button>
+          <button class="more-item" id="theme-btn" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <span>Dark Toolbar</span>
+          </button>
+        </div>
+      </div>
+
       <button class="toolbar-btn" id="hide-btn" type="button" title="Hide toolbar" aria-label="Hide toolbar">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -164,6 +174,6 @@
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="./qrious.min.js"></script>
-  <script type="module" src="./app.js?v=10"></script>
+  <script type="module" src="./app.js?v=11"></script>
 </body>
 </html>
