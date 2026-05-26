@@ -11,16 +11,16 @@
   <IconUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/support.html"/>
-  <Hosts>
-    <Host Name="Presentation"/>
-  </Hosts>
   <AppDomains>
     <AppDomain>https://prabhu-phd.github.io</AppDomain>
   </AppDomains>
+  <Hosts>
+    <Host Name="Presentation"/>
+  </Hosts>
   <DefaultSettings>
     <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=10"/>
-    <RequestedHeight>420</RequestedHeight>
     <RequestedWidth>720</RequestedWidth>
+    <RequestedHeight>420</RequestedHeight>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>

@@ -11,16 +11,16 @@
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://localhost:3000/support.html"/>
-  <Hosts>
-    <Host Name="Presentation"/>
-  </Hosts>
   <AppDomains>
     <AppDomain>https://localhost:3000</AppDomain>
   </AppDomains>
+  <Hosts>
+    <Host Name="Presentation"/>
+  </Hosts>
   <DefaultSettings>
     <SourceLocation DefaultValue="https://localhost:3000/content.html"/>
-    <RequestedHeight>420</RequestedHeight>
     <RequestedWidth>720</RequestedWidth>
+    <RequestedHeight>420</RequestedHeight>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>
