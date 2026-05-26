@@ -122,6 +122,14 @@ function bindEvents() {
   
   // Set up drawing canvas
   setupDrawing();
+
+  // Re-apply desktop fit scale on resize
+  window.addEventListener("resize", () => {
+    if (state.desktopFit) {
+      applyDesktopFitScale(document.body.clientWidth);
+    }
+  });
+
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
   ui.refreshBtn.addEventListener("click", () => ui.refreshDropdown.classList.toggle("is-hidden"));
   ui.refreshList.addEventListener("click", handleRefreshOptionClick);
@@ -479,12 +487,17 @@ function forceRefresh() {
 }
 
 function registerActiveViewChanged() {
-  if (!Office?.context?.document?.addHandlerAsync || !Office?.EventType?.ActiveViewChanged) {
-    return;
+  if (Office?.context?.document?.addHandlerAsync && Office?.EventType?.ActiveViewChanged) {
+    Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, () => {
+      syncActiveView();
+    });
   }
 
-  Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, () => {
-    syncActiveView();
+  // Fallback for PowerPoint Online where ActiveViewChanged may not fire reliably
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      syncActiveView();
+    }
   });
 }
 
@@ -1113,6 +1126,29 @@ function syncZoomState() {
     ui.frame.style.width = `${100 / state.zoom}%`;
     ui.frame.style.height = `${100 / state.zoom}%`;
   }
+}
+
+function toggleDesktopFit() {
+  state.desktopFit = !state.desktopFit;
+  ui.desktopFitBtn.style.color = state.desktopFit ? "var(--accent)" : "";
+  if (state.desktopFit) {
+    applyDesktopFitScale(document.body.clientWidth, document.body.clientHeight);
+  } else {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+    syncZoomState();
+  }
+  persistState();
+}
+
+function applyDesktopFitScale(containerWidth) {
+  const TARGET_DESKTOP_WIDTH = 1280;
+  const scale = Math.min(containerWidth / TARGET_DESKTOP_WIDTH, 1);
+  ui.frame.style.transformOrigin = "top left";
+  ui.frame.style.transform = `scale(${scale})`;
+  ui.frame.style.width = `${100 / scale}%`;
+  ui.frame.style.height = `${100 / scale}%`;
 }
 
 function handleRefreshOptionClick(e) {

@@ -3,11 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>Slide Web Viewer</title>
-  <link rel="stylesheet" href="./styles.css?v=9">
+  <title>Webviewer 2.0</title>
+  <link rel="stylesheet" href="./styles.css?v=10">
 </head>
 <body>
   <main class="shell" id="shell">
@@ -55,6 +52,26 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
       </button>
 
+      <button class="toolbar-btn" id="safe-mode-btn" type="button" title="Safe Mode – block clicks on content" aria-label="Safe Mode">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn" id="draw-mode-btn" type="button" title="Draw Mode" aria-label="Draw Mode">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn is-hidden" id="clear-draw-btn" type="button" title="Clear Drawing" aria-label="Clear Drawing">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      <button class="toolbar-btn" id="invert-btn" type="button" title="Invert Content Colors" aria-label="Invert Content Colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path fill="currentColor" stroke="none" d="M12 3a9 9 0 0 0 0 18z"/>
+        </svg>
+      </button>
       <button class="toolbar-btn" id="popout-btn" type="button" title="Open in Browser" aria-label="Open in Browser">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>
@@ -140,11 +157,13 @@
       </div>
     </div>
 
+    <div class="safe-mode-overlay is-hidden" id="safe-mode-overlay"></div>
+    <canvas class="draw-canvas is-hidden" id="draw-canvas"></canvas>
     <div id="viewer-frame" class="grid-container"></div>
   </main>
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="./qrious.min.js"></script>
-  <script type="module" src="./app.js?v=9"></script>
+  <script type="module" src="./app.js?v=10"></script>
 </body>
 </html>
