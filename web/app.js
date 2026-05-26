@@ -29,6 +29,7 @@ const KNOWN_BLOCKED_DOMAINS = [
 
 const state = {
   chromeVisible: true,
+  _savedEditChrome: null,   // preserves edit-mode chrome state across slideshow
   currentUrl: "",
   recentUrls: [],
   isDark: false,
@@ -198,7 +199,6 @@ function hydrateFromBrowserStorage() {
     syncChromeState();
     syncThemeState();
     if (state.desktopFit) {
-      ui.desktopFitBtn.style.color = "var(--accent)";
       applyDesktopFitScale(document.body.clientWidth);
     }
     syncZoomState();
@@ -461,17 +461,29 @@ function syncActiveView(options = {}) {
     
     if (nextView === "read") {
       document.body.classList.add("is-presentation");
-      
+
+      // Auto-hide toolbar on entering slideshow, preserving the edit-mode state
+      // so it is correctly restored when the presenter exits the slideshow.
+      state._savedEditChrome = state.chromeVisible;
+      state.chromeVisible = false;
+      syncChromeState(); // adds is-chrome-hidden → floating toggle appears
+
       if (typeof clearCanvas === "function") clearCanvas();
       hideBlockOverlay();
-      
+
       if (!options.isInitial) {
         forceRefresh();
       }
     } else {
       document.body.classList.remove("is-presentation");
+
+      // Restore the chrome state from before the slideshow.
+      if (state._savedEditChrome !== null) {
+        state.chromeVisible = state._savedEditChrome;
+        state._savedEditChrome = null;
+      }
       syncChromeState();
-      
+
       if (!options.isInitial) {
         forceRefresh();
       }
@@ -1118,6 +1130,7 @@ function toggleTheme() {
 
 function syncThemeState() {
   ui.shell.classList.toggle("is-dark", state.isDark);
+  ui.themeBtn.classList.toggle("is-active", state.isDark);
   syncMoreBtnState();
 }
 
@@ -1158,7 +1171,7 @@ function syncZoomState() {
 
 function toggleDesktopFit() {
   state.desktopFit = !state.desktopFit;
-  ui.desktopFitBtn.style.color = state.desktopFit ? "var(--accent)" : "";
+  ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
   if (state.desktopFit) {
     applyDesktopFitScale(document.body.clientWidth, document.body.clientHeight);
   } else {
@@ -1217,34 +1230,24 @@ function applyRefreshInterval() {
 
 function syncAdvancedTools() {
   // Safe Mode
-  if (state.safeMode) {
-    ui.safeModeBtn.style.color = "var(--accent)";
-    ui.safeModeOverlay.classList.remove("is-hidden");
-  } else {
-    ui.safeModeBtn.style.color = "";
-    ui.safeModeOverlay.classList.add("is-hidden");
-  }
+  ui.safeModeBtn.classList.toggle("is-active", state.safeMode);
+  ui.safeModeOverlay.classList.toggle("is-hidden", !state.safeMode);
 
   // Draw Mode
-  if (state.drawMode) {
-    ui.drawModeBtn.style.color = "var(--accent)";
-    ui.drawCanvas.classList.remove("is-hidden");
-    ui.clearDrawBtn.classList.remove("is-hidden");
-    resizeCanvas();
-  } else {
-    ui.drawModeBtn.style.color = "";
-    ui.drawCanvas.classList.add("is-hidden");
-    ui.clearDrawBtn.classList.add("is-hidden");
-  }
+  ui.drawModeBtn.classList.toggle("is-active", state.drawMode);
+  ui.drawCanvas.classList.toggle("is-hidden", !state.drawMode);
+  ui.clearDrawBtn.classList.toggle("is-hidden", !state.drawMode);
+  if (state.drawMode) resizeCanvas();
+
+  // Desktop Fit
+  ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
 
   // Invert Theme
-  if (state.invertTheme) {
-    ui.invertBtn.style.color = "var(--accent)";
-    ui.frame.classList.add("smart-invert");
-  } else {
-    ui.invertBtn.style.color = "";
-    ui.frame.classList.remove("smart-invert");
-  }
+  ui.invertBtn.classList.toggle("is-active", state.invertTheme);
+  ui.frame.classList.toggle("smart-invert", state.invertTheme);
+
+  // Dark Toolbar
+  ui.themeBtn.classList.toggle("is-active", state.isDark);
 
   syncMoreBtnState();
 }

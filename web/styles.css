@@ -135,7 +135,7 @@ body {
   background: var(--panel-bg);
   border: 2px solid var(--btn-border);
   border-radius: 0;
-  color: #555;
+  color: var(--text-light);
   cursor: pointer;
   margin-left: 10px;
   transition: background 0.15s;
@@ -251,11 +251,39 @@ body {
   transition: opacity 0.35s ease;
 }
 
-/* Hide the icon and text since the input is now centered here */
-.empty-icon,
-.empty-state p,
+.empty-hints {
+  position: absolute;
+  top: calc(50% + 46px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0 24px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.empty-icon {
+  color: var(--empty-color);
+  margin-bottom: 4px;
+}
+
+.empty-state > .empty-hints > p {
+  margin: 0;
+  color: var(--empty-color);
+  font-size: 0.9rem;
+}
+
 .empty-hint {
-  display: none;
+  font-size: 0.8rem !important;
+}
+
+.empty-tip {
+  font-size: 0.75rem !important;
+  margin-top: 4px !important;
+  opacity: 0.7;
 }
 
 .empty-state.is-hidden {
@@ -592,7 +620,53 @@ iframe.smart-invert {
 
 .toast.is-hidden { display: block !important; }
 
-.shell[data-view="read"] .toolbar { display: none !important; }
+/* ── Toolbar backdrop when content is loaded ──────────────────────── */
+
+.shell:not(.is-empty) .toolbar {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.shell.is-dark:not(.is-empty) .toolbar {
+  background: rgba(18, 18, 18, 0.88);
+}
+
+/* ── Hide dividers when toolbar is in the empty/centered state ───── */
+
+.shell.is-empty .divider { display: none; }
+
+/* ── More dropdown active item state ─────────────────────────────── */
+
+.more-item.is-active {
+  color: var(--accent);
+  font-weight: 600;
+  border-left: 3px solid var(--accent);
+  padding-left: 11px; /* compensate for the 3px border */
+}
+
+.more-item.is-active::after {
+  content: "✓";
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ── Slideshow mode: hide toolbar by default but keep it revealable ─ */
+/* Remove the hard display:none — the is-chrome-hidden class handles   */
+/* opacity+transform, and the floating toggle lets the presenter show  */
+/* the toolbar on demand.                                              */
+
+.shell[data-view="read"] .toolbar {
+  /* intentionally not display:none — rely on is-chrome-hidden instead */
+}
+
+/* Ensure the floating toggle is always available in slideshow.        */
+/* (is-chrome-hidden already makes it flex; this is a safety net for  */
+/* the brief moment before syncActiveView sets is-chrome-hidden.)     */
+.shell[data-view="read"]:not(.is-chrome-hidden) .toolbar {
+  /* toolbar is intentionally visible here — presenter revealed it */
+}
 
 /* ── Refresh Container ────────────────────────────────────────────── */
 

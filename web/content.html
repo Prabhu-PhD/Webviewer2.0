@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Webviewer 2.0</title>
-  <link rel="stylesheet" href="./styles.css?v=11">
+  <link rel="stylesheet" href="./styles.css?v=12">
 </head>
 <body>
   <main class="shell" id="shell">
@@ -41,6 +41,8 @@
         </div>
       </div>
 
+      <div class="divider" role="separator" aria-hidden="true"></div>
+
       <button class="toolbar-btn" id="zoom-out-btn" type="button" title="Zoom Out" aria-label="Zoom Out">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line>
@@ -52,6 +54,8 @@
           <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line>
         </svg>
       </button>
+
+      <div class="divider" role="separator" aria-hidden="true"></div>
 
       <button class="toolbar-btn" id="popout-btn" type="button" title="Open in Browser" aria-label="Open in Browser">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -68,6 +72,8 @@
           <path d="M9 3v7M15 3v7M15 14v7M9 14v7M3 9h7M14 9h7M14 15h7M3 15h7"></path>
         </svg>
       </button>
+
+      <div class="divider" role="separator" aria-hidden="true"></div>
 
       <div class="more-container">
         <button class="toolbar-btn" id="more-btn" type="button" title="More tools" aria-label="More tools">
@@ -121,17 +127,20 @@
     <div class="loading-bar" id="loading-bar"></div>
 
     <div class="empty-state" id="empty-state">
-      <div class="empty-icon" aria-hidden="true">
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-          <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" stroke-width="2"/>
-          <path d="M6 18h36" stroke="currentColor" stroke-width="2"/>
-          <circle cx="11" cy="14" r="1.5" fill="currentColor"/>
-          <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
-          <circle cx="21" cy="14" r="1.5" fill="currentColor"/>
-        </svg>
+      <div class="empty-hints">
+        <div class="empty-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
+            <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" stroke-width="2"/>
+            <path d="M6 18h36" stroke="currentColor" stroke-width="2"/>
+            <circle cx="11" cy="14" r="1.5" fill="currentColor"/>
+            <circle cx="16" cy="14" r="1.5" fill="currentColor"/>
+            <circle cx="21" cy="14" r="1.5" fill="currentColor"/>
+          </svg>
+        </div>
+        <p>Paste a URL to embed a web page</p>
+        <p class="empty-hint">YouTube, Vimeo, Google Slides, and other embed links work best</p>
+        <p class="empty-tip">Tip: separate up to 4 URLs with commas for split-screen</p>
       </div>
-      <p>Paste a URL to embed a web page</p>
-      <p class="empty-hint">YouTube, Vimeo, Google Slides, and other embed links work best</p>
     </div>
 
     <div class="block-overlay is-hidden" id="block-overlay">
@@ -174,6 +183,6 @@
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="./qrious.min.js"></script>
-  <script type="module" src="./app.js?v=11"></script>
+  <script type="module" src="./app.js?v=12"></script>
 </body>
 </html>
