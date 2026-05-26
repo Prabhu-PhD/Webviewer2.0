@@ -40,6 +40,7 @@ const state = {
   drawMode: false,
   invertTheme: false,
   isLoading: false,
+  pendingLoads: 0,
   loadTimer: null,
   officeReady: false
 };
@@ -102,7 +103,6 @@ function bindEvents() {
   ui.loadForm.addEventListener("submit", handleLoadSubmit);
   ui.hideBtn.addEventListener("click", toggleChrome);
   ui.floatingToggle.addEventListener("click", toggleChrome);
-  ui.frame.addEventListener("load", handleFrameLoaded);
   ui.blockOpenBtn.addEventListener("click", openCurrentUrl);
   ui.blockDismissBtn.addEventListener("click", dismissBlockOverlay);
 
@@ -194,11 +194,11 @@ function hydrateFromBrowserStorage() {
     syncThemeState();
     if (state.desktopFit) {
       ui.desktopFitBtn.style.color = "var(--accent)";
-      applyDesktopFitScale(document.body.clientWidth, document.body.clientHeight);
+      applyDesktopFitScale(document.body.clientWidth);
     } else {
       syncZoomState();
-    syncAdvancedTools();
     }
+    syncAdvancedTools();
     applyRefreshInterval();
 
     if (currentUrl) {
@@ -301,8 +301,8 @@ function loadIntoFrame(rawInput, options = {}) {
   }
 
   let hasErrors = false;
-  state.isLoading = true;
-  ui.loadingBar.classList.add("is-active");
+  state.pendingLoads = 0;
+  state.isLoading = false;
 
   urlStrings.forEach(urlString => {
     let request;
@@ -328,16 +328,17 @@ function loadIntoFrame(rawInput, options = {}) {
     iframe.src = request.normalizedUrl;
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
-    
+
     // Force inline iframe styles
     iframe.style.width = "100%";
     iframe.style.height = "100%";
     iframe.style.border = "none";
     iframe.style.background = "#fff";
     iframe.style.minHeight = "0"; // prevent flex/grid blowout
-    
+
     iframe.addEventListener("load", handleFrameLoaded);
     ui.frame.appendChild(iframe);
+    state.pendingLoads++;
 
     if (!silent && request.note && urlStrings.length === 1) {
       showToast(request.note, "info");
@@ -348,8 +349,12 @@ function loadIntoFrame(rawInput, options = {}) {
     showToast("One or more links could not be loaded.", "warning");
   }
 
-  clearTimeout(state.loadTimer);
-  state.loadTimer = window.setTimeout(handleLoadTimeout, LOAD_TIMEOUT_MS);
+  if (state.pendingLoads > 0) {
+    state.isLoading = true;
+    ui.loadingBar.classList.add("is-active");
+    clearTimeout(state.loadTimer);
+    state.loadTimer = window.setTimeout(handleLoadTimeout, LOAD_TIMEOUT_MS);
+  }
 
   if (persist) {
     persistState();
@@ -357,17 +362,14 @@ function loadIntoFrame(rawInput, options = {}) {
 }
 
 function handleFrameLoaded() {
-  if (!state.isLoading) return;
-  
+  if (state.pendingLoads > 0) state.pendingLoads--;
+  if (state.pendingLoads > 0 || !state.isLoading) return;
+
   state.isLoading = false;
   ui.loadingBar.classList.remove("is-active");
   clearTimeout(state.loadTimer);
 
-  if (!state.currentUrl) {
-    return;
-  }
-
-  hideToast();
+  if (state.currentUrl) hideToast();
 }
 
 function handleLoadTimeout() {
@@ -376,6 +378,7 @@ function handleLoadTimeout() {
   }
 
   state.isLoading = false;
+  state.pendingLoads = 0;
   ui.loadingBar.classList.remove("is-active");
   showBlockOverlay();
 }
@@ -396,11 +399,16 @@ function dismissBlockOverlay() {
   hideBlockOverlay();
   ui.urlInput.value = "";
   ui.urlInput.focus();
-  
+
   state.currentUrl = "";
-  syncEmptyState();
-  ui.frame.src = "about:blank";
+  state.isLoading = false;
+  state.pendingLoads = 0;
+  clearTimeout(state.loadTimer);
+  ui.frame.innerHTML = "";
+  ui.frame.dataset.count = 0;
   ui.emptyState.classList.remove("is-hidden");
+  syncEmptyState();
+  persistState();
 }
 
 function openCurrentUrl() {
@@ -480,8 +488,10 @@ function forceRefresh() {
     // Replace cleanly to avoid about:blank crashes
     iframe.replaceWith(newIframe);
   });
-  
+
   if (iframes.length > 0) {
+    state.pendingLoads = iframes.length;
+    state.isLoading = true;
     ui.loadingBar.classList.add("is-active");
   }
 }
@@ -1116,6 +1126,7 @@ function zoomOut() {
 }
 
 function syncZoomState() {
+  if (state.desktopFit) return;
   if (state.zoom === 1.0) {
     ui.frame.style.transform = "";
     ui.frame.style.width = "100%";

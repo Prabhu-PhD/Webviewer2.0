@@ -585,4 +585,11 @@ iframe.smart-invert {
 
 .is-hidden { display: none !important; }
 
+/* Overlay elements use opacity transitions — must stay in layout when "hidden" */
+.block-overlay.is-hidden,
+.qr-overlay.is-hidden,
+.empty-state.is-hidden { display: flex !important; }
+
+.toast.is-hidden { display: block !important; }
+
 .shell[data-view="read"] .toolbar { display: none !important; }
