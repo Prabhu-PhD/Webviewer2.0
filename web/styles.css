@@ -64,7 +64,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0; /* Sharp transition between input and button */
-  padding: 10px;
+  padding: 6px 8px;
   background: transparent; /* No fill */
   border: none; /* No outline */
   transition: all 0.3s ease;
@@ -88,16 +88,16 @@ body {
 
 #url-input {
   flex: 1;
-  height: 44px;
+  height: 36px;
   min-width: 0;
-  padding: 0 16px;
+  padding: 0 12px;
   background: var(--panel-bg); /* White fill */
   border: 2px solid var(--accent); /* Orange outline */
   border-right: none; /* Connect to the button */
   border-radius: 0; /* Sharp corners */
   color: var(--text-light);
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.9rem;
   outline: none;
 }
 
@@ -106,14 +106,14 @@ body {
 }
 
 .go-btn {
-  height: 44px;
-  padding: 0 24px;
+  height: 36px;
+  padding: 0 18px;
   background: var(--accent); /* Orange fill */
   border: 2px solid var(--accent);
   border-radius: 0; /* Sharp corners */
   color: #ffffff; /* White text */
   font: inherit;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -129,15 +129,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   background: var(--panel-bg);
   border: 2px solid var(--btn-border);
   border-radius: 0;
   color: var(--text-light);
   cursor: pointer;
-  margin-left: 10px;
+  margin-left: 6px;
   transition: background 0.15s;
 }
 
@@ -187,9 +187,9 @@ body {
 
 .toast {
   position: absolute;
-  top: 66px;
-  left: 10px;
-  right: 10px;
+  top: 50px;
+  left: 8px;
+  right: 8px;
   z-index: 9;
   padding: 12px 16px;
   background: var(--toast-bg);
@@ -217,17 +217,17 @@ body {
 .floating-toggle {
   display: none;
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 8px;
+  left: 8px;
   z-index: 10;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   background: var(--panel-bg);
   border: 2px solid var(--btn-border);
   border-radius: 0; /* Sharp corners */
-  color: #555;
+  color: var(--text-light);
   box-shadow: var(--shadow);
   cursor: pointer;
   transition: background 0.15s;
@@ -253,7 +253,7 @@ body {
 
 .empty-hints {
   position: absolute;
-  top: calc(50% + 46px);
+  top: calc(50% + 36px);
   left: 0;
   right: 0;
   display: flex;
@@ -547,7 +547,7 @@ body {
   }
 
   .go-btn {
-    padding: 0 14px;
+    padding: 0 10px;
   }
 }
 
@@ -582,7 +582,7 @@ iframe.smart-invert {
 
 .toolbar .divider {
   width: 1px;
-  height: 24px;
+  height: 18px;
   background: var(--btn-border);
   margin: 0 4px;
 }
@@ -685,7 +685,7 @@ iframe.smart-invert {
 
 .zoom-level-btn {
   width: auto;
-  min-width: 44px;
+  min-width: 36px;
   padding: 0 6px;
   font-size: 0.78rem;
   font-weight: 600;
