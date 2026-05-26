@@ -3,7 +3,7 @@
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:type="ContentApp">
   <Id>b78a992d-9f5b-43d8-8422-99abfe32e01b</Id>
-  <Version>2.0.4.0</Version>
+  <Version>2.0.5.0</Version>
   <ProviderName>Webviewer2</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Webviewer 2.0"/>
@@ -23,7 +23,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=13"/>
+    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=14"/>
     <RequestedWidth>720</RequestedWidth>
     <RequestedHeight>420</RequestedHeight>
   </DefaultSettings>

@@ -7,7 +7,8 @@ const STORAGE_KEYS = {
   refreshInterval: "webviewer2.refreshInterval",
   desktopFit: "webviewer2.desktopFit",
   safeMode: "webviewer2.safeMode",
-  invertTheme: "webviewer2.invertTheme"
+  invertTheme: "webviewer2.invertTheme",
+  mobileView: "webviewer2.mobileView"
 };
 
 const LOAD_TIMEOUT_MS = 9000;
@@ -40,11 +41,17 @@ const state = {
   safeMode: false,
   drawMode: false,
   invertTheme: false,
+  mobileView: false,
+  autoScrollSpeed: 0,       // 0=off 1=slow 2=medium 3=fast (not persisted)
+  autoScrollPos: 0,
+  autoScrollRafId: null,
   isLoading: false,
   pendingLoads: 0,
   loadTimer: null,
   officeReady: false
 };
+
+let _autoScrollLast = null; // rAF timestamp tracking
 
 const ui = {};
 let toastTimer = null;
@@ -99,6 +106,8 @@ function cacheUi() {
   ui.themeBtn = document.getElementById("theme-btn");
   ui.moreBtn = document.getElementById("more-btn");
   ui.moreDropdown = document.getElementById("more-dropdown");
+  ui.mobileViewBtn = document.getElementById("mobile-view-btn");
+  ui.autoScrollBtn = document.getElementById("auto-scroll-btn");
 
   syncEmptyState();
 }
@@ -125,14 +134,18 @@ function bindEvents() {
   ui.drawModeBtn.addEventListener("click", toggleDrawMode);
   ui.clearDrawBtn.addEventListener("click", clearCanvas);
   ui.invertBtn.addEventListener("click", toggleInvertTheme);
-  
+  ui.mobileViewBtn.addEventListener("click", toggleMobileView);
+  ui.autoScrollBtn.addEventListener("click", toggleAutoScroll);
+
   // Set up drawing canvas
   setupDrawing();
 
-  // Re-apply desktop fit scale on resize
+  // Re-apply view transforms on resize
   window.addEventListener("resize", () => {
     if (state.desktopFit) {
       applyDesktopFitScale(document.body.clientWidth);
+    } else if (state.mobileView) {
+      applyMobileView();
     }
   });
 
@@ -177,6 +190,7 @@ function hydrateFromBrowserStorage() {
     const desktopFitStr = window.localStorage.getItem(STORAGE_KEYS.desktopFit);
     const safeModeStr = window.localStorage.getItem(STORAGE_KEYS.safeMode);
     const invertStr = window.localStorage.getItem(STORAGE_KEYS.invertTheme);
+    const mobileViewStr = window.localStorage.getItem(STORAGE_KEYS.mobileView);
 
     if (isDarkStr) state.isDark = isDarkStr === "true";
     if (zoomStr) state.zoom = parseFloat(zoomStr) || 1.0;
@@ -184,6 +198,7 @@ function hydrateFromBrowserStorage() {
     if (desktopFitStr) state.desktopFit = desktopFitStr === "true";
     if (safeModeStr) state.safeMode = safeModeStr === "true";
     if (invertStr) state.invertTheme = invertStr === "true";
+    if (mobileViewStr) state.mobileView = mobileViewStr === "true";
 
     if (recentUrlsStr) {
       try {
@@ -353,6 +368,13 @@ function loadIntoFrame(rawInput, options = {}) {
     showToast("One or more links could not be loaded.", "warning");
   }
 
+  // Apply view modes to newly created iframes
+  if (state.mobileView) {
+    requestAnimationFrame(() => applyMobileView());
+  } else if (state.autoScrollSpeed > 0) {
+    applyAutoScrollIframes();
+  }
+
   if (state.pendingLoads > 0) {
     state.isLoading = true;
     ui.loadingBar.classList.add("is-active");
@@ -509,6 +531,13 @@ function forceRefresh() {
     state.pendingLoads = iframes.length;
     state.isLoading = true;
     ui.loadingBar.classList.add("is-active");
+
+    // Re-apply view modes to replaced iframes
+    if (state.mobileView) {
+      requestAnimationFrame(() => applyMobileView());
+    } else if (state.autoScrollSpeed > 0) {
+      applyAutoScrollIframes();
+    }
   }
 }
 
@@ -541,6 +570,7 @@ function persistToBrowserStorage() {
     window.localStorage.setItem(STORAGE_KEYS.desktopFit, String(state.desktopFit));
     window.localStorage.setItem(STORAGE_KEYS.safeMode, String(state.safeMode));
     window.localStorage.setItem(STORAGE_KEYS.invertTheme, String(state.invertTheme));
+    window.localStorage.setItem(STORAGE_KEYS.mobileView, String(state.mobileView));
     if (state.currentUrl) {
       window.localStorage.setItem(STORAGE_KEYS.currentUrl, state.currentUrl);
     }
@@ -1154,31 +1184,48 @@ function resetZoom() {
 
 function syncZoomState() {
   if (ui.zoomLevelBtn) {
-    ui.zoomLevelBtn.textContent = state.desktopFit ? "Fit" : `${Math.round(state.zoom * 100)}%`;
+    if (state.desktopFit) {
+      ui.zoomLevelBtn.textContent = "Fit";
+    } else if (state.mobileView) {
+      ui.zoomLevelBtn.textContent = "390px";
+    } else {
+      ui.zoomLevelBtn.textContent = `${Math.round(state.zoom * 100)}%`;
+    }
   }
-  if (state.desktopFit) return;
-  if (state.zoom === 1.0) {
-    ui.frame.style.transform = "";
-    ui.frame.style.width = "100%";
-    ui.frame.style.height = "100%";
-  } else {
-    ui.frame.style.transformOrigin = "top left";
-    ui.frame.style.transform = `scale(${state.zoom})`;
-    ui.frame.style.width = `${100 / state.zoom}%`;
-    ui.frame.style.height = `${100 / state.zoom}%`;
-  }
+  if (state.desktopFit || state.mobileView) return;
+  applyFrameTransform();
 }
 
 function toggleDesktopFit() {
   state.desktopFit = !state.desktopFit;
-  ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
+
   if (state.desktopFit) {
-    applyDesktopFitScale(document.body.clientWidth, document.body.clientHeight);
+    // Mutual exclusivity: disable mobile view
+    if (state.mobileView) {
+      state.mobileView = false;
+      ui.mobileViewBtn.classList.remove("is-active");
+      ui.frame.querySelectorAll("iframe").forEach(f => {
+        f.style.width = "100%";
+        f.style.height = "100%";
+        f.style.transform = "";
+        f.style.transformOrigin = "";
+      });
+    }
+    // Stop any active auto-scroll
+    stopAutoScrollAnimation();
+    state.autoScrollSpeed = 0;
+    state.autoScrollPos = 0;
+    const scrollSpan = ui.autoScrollBtn.querySelector("span");
+    if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
+    resetAutoScrollIframes();
+    applyDesktopFitScale(document.body.clientWidth);
   } else {
     ui.frame.style.transform = "";
     ui.frame.style.width = "100%";
     ui.frame.style.height = "100%";
   }
+
+  ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
   syncZoomState();
   syncMoreBtnState();
   persistState();
@@ -1249,11 +1296,17 @@ function syncAdvancedTools() {
   // Dark Toolbar
   ui.themeBtn.classList.toggle("is-active", state.isDark);
 
+  // Mobile View
+  ui.mobileViewBtn.classList.toggle("is-active", state.mobileView);
+
+  // Auto-Scroll
+  ui.autoScrollBtn.classList.toggle("is-active", state.autoScrollSpeed > 0);
+
   syncMoreBtnState();
 }
 
 function syncMoreBtnState() {
-  const anyActive = state.desktopFit || state.safeMode || state.drawMode || state.invertTheme || state.isDark;
+  const anyActive = state.desktopFit || state.safeMode || state.drawMode || state.invertTheme || state.isDark || state.mobileView || state.autoScrollSpeed > 0;
   ui.moreBtn.style.color = anyActive ? "var(--accent)" : "";
 }
 
@@ -1357,5 +1410,163 @@ function stopDrawing() {
 function clearCanvas() {
   if (ctx && ui.drawCanvas) {
     ctx.clearRect(0, 0, ui.drawCanvas.width, ui.drawCanvas.height);
+  }
+}
+
+/* ── Frame Transform Composition ────────────────────────────────── */
+
+// Applies zoom scale to #viewer-frame. Auto-scroll translateY is applied
+// directly to each <iframe> so the two transforms never conflict.
+function applyFrameTransform() {
+  if (state.desktopFit || state.mobileView) return;
+
+  if (state.zoom === 1.0) {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+  } else {
+    ui.frame.style.transformOrigin = "top left";
+    ui.frame.style.transform = `scale(${state.zoom})`;
+    ui.frame.style.width = `${100 / state.zoom}%`;
+    ui.frame.style.height = `${100 / state.zoom}%`;
+  }
+}
+
+/* ── Mobile View ─────────────────────────────────────────────────── */
+
+function toggleMobileView() {
+  state.mobileView = !state.mobileView;
+
+  if (state.mobileView) {
+    // Mutual exclusivity: disable desktop fit
+    if (state.desktopFit) {
+      state.desktopFit = false;
+      ui.desktopFitBtn.classList.remove("is-active");
+    }
+    // Mutual exclusivity: stop auto-scroll
+    stopAutoScrollAnimation();
+    state.autoScrollSpeed = 0;
+    state.autoScrollPos = 0;
+    const scrollSpan = ui.autoScrollBtn.querySelector("span");
+    if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
+    resetAutoScrollIframes();
+    // Reset frame-level transforms set by zoom
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+    applyMobileView();
+  } else {
+    // Restore normal iframe sizing
+    ui.frame.querySelectorAll("iframe").forEach(f => {
+      f.style.width = "100%";
+      f.style.height = "100%";
+      f.style.transform = "";
+      f.style.transformOrigin = "";
+    });
+    applyFrameTransform();
+  }
+
+  syncZoomState();
+  syncAdvancedTools();
+  persistState();
+}
+
+function applyMobileView() {
+  if (!state.mobileView) return;
+
+  const MOBILE_WIDTH = 390; // iPhone-class viewport width in CSS px
+  const iframes = ui.frame.querySelectorAll("iframe");
+  const paneCount = iframes.length;
+  const containerW = ui.frame.clientWidth || document.body.clientWidth;
+  const containerH = ui.frame.clientHeight || document.body.clientHeight;
+  const paneWidth = paneCount > 1 ? containerW / 2 : containerW;
+  const scale = paneWidth / MOBILE_WIDTH;
+
+  iframes.forEach(iframe => {
+    iframe.style.width = `${MOBILE_WIDTH}px`;
+    iframe.style.height = `${containerH / scale}px`;
+    iframe.style.transformOrigin = "top left";
+    iframe.style.transform = `scale(${scale})`;
+  });
+}
+
+/* ── Auto-Scroll ─────────────────────────────────────────────────── */
+
+// px/sec for each speed level (0=off, 1=slow, 2=medium, 3=fast)
+const AUTO_SCROLL_SPEEDS = [0, 20, 50, 120];
+const AUTO_SCROLL_LABELS = ["Auto-Scroll", "Slow Scroll", "Medium Scroll", "Fast Scroll"];
+
+function toggleAutoScroll() {
+  // Cycle: off → slow → medium → fast → off
+  state.autoScrollSpeed = (state.autoScrollSpeed + 1) % 4;
+
+  const span = ui.autoScrollBtn.querySelector("span");
+  if (span) span.textContent = AUTO_SCROLL_LABELS[state.autoScrollSpeed];
+
+  if (state.autoScrollSpeed === 0) {
+    stopAutoScrollAnimation();
+    state.autoScrollPos = 0;
+    resetAutoScrollIframes();
+  } else {
+    applyAutoScrollIframes(); // extend iframe heights before animating
+    startAutoScrollAnimation();
+  }
+
+  syncAdvancedTools();
+}
+
+// Extend each iframe to 3× the container height so there is scrollable
+// content to reveal. The translateY in autoScrollTick pans through it.
+function applyAutoScrollIframes() {
+  const containerH = ui.frame.clientHeight || 400;
+  ui.frame.querySelectorAll("iframe").forEach(iframe => {
+    iframe.style.height = `${containerH * 3}px`;
+  });
+}
+
+// Restore iframes to their normal full-height sizing.
+function resetAutoScrollIframes() {
+  ui.frame.querySelectorAll("iframe").forEach(iframe => {
+    iframe.style.height = "100%";
+    iframe.style.transform = "";
+    iframe.style.transformOrigin = "";
+  });
+}
+
+function startAutoScrollAnimation() {
+  stopAutoScrollAnimation();
+  _autoScrollLast = null;
+  state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
+}
+
+function stopAutoScrollAnimation() {
+  if (state.autoScrollRafId) {
+    cancelAnimationFrame(state.autoScrollRafId);
+    state.autoScrollRafId = null;
+  }
+  _autoScrollLast = null;
+}
+
+function autoScrollTick(timestamp) {
+  if (!_autoScrollLast) _autoScrollLast = timestamp;
+  const delta = (timestamp - _autoScrollLast) / 1000; // convert ms → seconds
+  _autoScrollLast = timestamp;
+
+  const speed = AUTO_SCROLL_SPEEDS[state.autoScrollSpeed] || 0;
+  if (speed > 0) {
+    const containerH = ui.frame.clientHeight || 400;
+    const maxScroll = containerH * 2; // 3× iframe height − 1× visible = 2× scrollable
+    state.autoScrollPos = (state.autoScrollPos + speed * delta) % maxScroll;
+
+    ui.frame.querySelectorAll("iframe").forEach(iframe => {
+      iframe.style.transformOrigin = "top left";
+      iframe.style.transform = `translateY(-${state.autoScrollPos}px)`;
+    });
+  }
+
+  if (state.autoScrollSpeed > 0) {
+    state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
+  } else {
+    state.autoScrollRafId = null;
   }
 }

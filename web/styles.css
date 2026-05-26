@@ -735,6 +735,12 @@ iframe.smart-invert {
   border-bottom: none;
 }
 
+.more-separator {
+  height: 1px;
+  background: var(--btn-border);
+  margin: 4px 8px;
+}
+
 .more-item:hover {
   background: var(--btn-hover);
 }
