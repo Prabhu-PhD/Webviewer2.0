@@ -18,7 +18,7 @@
     <AppDomain>https://prabhu-phd.github.io</AppDomain>
   </AppDomains>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html"/>
+    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=10"/>
     <RequestedHeight>420</RequestedHeight>
     <RequestedWidth>720</RequestedWidth>
   </DefaultSettings>

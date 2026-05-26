@@ -583,4 +583,7 @@ iframe.smart-invert {
 .grid-container[data-count="3"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .grid-container[data-count="4"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 . i s - h i d d e n   {   d i s p l a y :   n o n e   ! i m p o r t a n t ;   }  
+  
+ . s h e l l [ d a t a - v i e w = \  
+ r e a d \ ]   . t o o l b a r   {   d i s p l a y :   n o n e   ! i m p o r t a n t ;   }  
  

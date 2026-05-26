@@ -441,8 +441,6 @@ function syncActiveView(options = {}) {
     
     if (nextView === "read") {
       document.body.classList.add("is-presentation");
-      ui.chrome.classList.add("is-hidden");
-      ui.toolbar.classList.add("is-hidden");
       
       if (typeof clearCanvas === "function") clearCanvas();
       hideBlockOverlay();
@@ -452,7 +450,6 @@ function syncActiveView(options = {}) {
       }
     } else {
       document.body.classList.remove("is-presentation");
-      ui.toolbar.classList.remove("is-hidden");
       syncChromeState();
       
       if (!options.isInitial) {
