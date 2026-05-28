@@ -165,7 +165,9 @@ function bindEvents() {
     if (e.key !== "Escape") return;
     ui.recentDropdown.classList.add("is-hidden");
     ui.refreshDropdown.classList.add("is-hidden");
+    ui.refreshBtn.setAttribute("aria-expanded", "false");
     ui.moreDropdown.classList.add("is-hidden");
+    ui.moreBtn.setAttribute("aria-expanded", "false");
     if (!ui.qrOverlay.classList.contains("is-hidden")) hideQrCode();
     if (!ui.blockOverlay.classList.contains("is-hidden")) dismissBlockOverlay();
   });
@@ -1277,15 +1279,24 @@ function applyDesktopFitScale(containerWidth) {
 function handleRefreshOptionClick(e) {
   const li = e.target.closest("li.recent-item");
   if (!li) return;
-  
+
+  // "Reload now" — trigger an immediate reload without changing the interval
+  if (li.dataset.val === "reload") {
+    if (state.currentUrl) forceRefresh();
+    ui.refreshDropdown.classList.add("is-hidden");
+    ui.refreshBtn.setAttribute("aria-expanded", "false");
+    return;
+  }
+
   const val = parseInt(li.dataset.val, 10);
   if (isNaN(val)) return;
-  
+
   state.refreshInterval = val;
   applyRefreshInterval();
   persistState();
-  
+
   ui.refreshDropdown.classList.add("is-hidden");
+  ui.refreshBtn.setAttribute("aria-expanded", "false");
 }
 
 function applyRefreshInterval() {
@@ -1294,15 +1305,13 @@ function applyRefreshInterval() {
     state.refreshTimerId = null;
   }
   
+  ui.refreshBtn.classList.toggle("is-active", state.refreshInterval > 0);
   if (state.refreshInterval > 0) {
-    ui.refreshBtn.style.color = "var(--accent)";
     state.refreshTimerId = setInterval(() => {
       if (state.currentUrl && !state.isLoading) {
         forceRefresh();
       }
     }, state.refreshInterval);
-  } else {
-    ui.refreshBtn.style.color = "";
   }
 }
 
@@ -1589,6 +1598,8 @@ function resetAutoScrollIframes() {
     iframe.style.height = "100%";
     iframe.style.transform = "";
     iframe.style.transformOrigin = "";
+    iframe.style.opacity = "";
+    iframe.style.transition = "";
   });
 }
 
@@ -1615,12 +1626,28 @@ function autoScrollTick(timestamp) {
   if (speed > 0) {
     const containerH = ui.frame.clientHeight || 400;
     const maxScroll = containerH * 2; // 3× iframe height − 1× visible = 2× scrollable
-    state.autoScrollPos = (state.autoScrollPos + speed * delta) % maxScroll;
+    const newPos = (state.autoScrollPos + speed * delta) % maxScroll;
+    const wrapped = newPos < state.autoScrollPos; // true when the modulo reset fired
+    state.autoScrollPos = newPos;
 
-    getFrameIframes().forEach(iframe => {
+    const iframes = getFrameIframes();
+    iframes.forEach(iframe => {
       iframe.style.transformOrigin = "top left";
       iframe.style.transform = `translateY(-${state.autoScrollPos}px)`;
     });
+
+    // On wrap, fade out instantly then fade back in so the jump to the top
+    // reads as an intentional reset rather than a visual glitch.
+    if (wrapped) {
+      iframes.forEach(f => {
+        f.style.transition = "none";
+        f.style.opacity = "0";
+        requestAnimationFrame(() => {
+          f.style.transition = "opacity 0.5s ease";
+          f.style.opacity = "1";
+        });
+      });
+    }
   }
 
   if (state.autoScrollSpeed > 0) {

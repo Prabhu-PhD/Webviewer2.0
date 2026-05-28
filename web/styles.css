@@ -644,6 +644,12 @@ iframe.smart-invert {
 
 .shell.is-empty .divider { display: none; }
 
+/* ── Toolbar button active state ────────────────────────────────── */
+
+.toolbar-btn.is-active {
+  color: var(--accent);
+}
+
 /* ── More dropdown active item state ─────────────────────────────── */
 
 .more-item.is-active {
@@ -747,6 +753,14 @@ iframe.smart-invert {
   height: 1px;
   background: var(--btn-border);
   margin: 4px 8px;
+}
+
+.refresh-rule {
+  height: 1px;
+  background: var(--btn-border);
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
 }
 
 .more-item:hover {
