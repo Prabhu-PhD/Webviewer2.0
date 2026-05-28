@@ -152,6 +152,16 @@ function bindEvents() {
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
   ui.refreshBtn.addEventListener("click", () => ui.refreshDropdown.classList.toggle("is-hidden"));
   ui.refreshList.addEventListener("click", handleRefreshOptionClick);
+
+  // Escape: close any open overlay or dropdown
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    ui.recentDropdown.classList.add("is-hidden");
+    ui.refreshDropdown.classList.add("is-hidden");
+    ui.moreDropdown.classList.add("is-hidden");
+    if (!ui.qrOverlay.classList.contains("is-hidden")) hideQrCode();
+    if (!ui.blockOverlay.classList.contains("is-hidden")) dismissBlockOverlay();
+  });
 }
 
 function handleOfficeReady() {
@@ -291,6 +301,9 @@ function loadIntoFrame(rawInput, options = {}) {
 
   ui.frame.innerHTML = ""; // Clear existing grid
 
+  // Reset auto-scroll position so the new page always starts from the top.
+  state.autoScrollPos = 0;
+
   if (!inputUrlString) {
     ui.emptyState.classList.remove("is-hidden");
     return;
@@ -345,7 +358,7 @@ function loadIntoFrame(rawInput, options = {}) {
 
     const iframe = document.createElement("iframe");
     iframe.src = request.normalizedUrl;
-    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
+    iframe.allow = "accelerometer; autoplay; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
 
     // Force inline iframe styles
@@ -490,7 +503,7 @@ function syncActiveView(options = {}) {
       state.chromeVisible = false;
       syncChromeState(); // adds is-chrome-hidden → floating toggle appears
 
-      if (typeof clearCanvas === "function") clearCanvas();
+      clearCanvas();
       hideBlockOverlay();
 
       if (!options.isInitial) {
@@ -1323,6 +1336,13 @@ function toggleDrawMode() {
   state.drawMode = !state.drawMode;
   if (state.drawMode) {
     state.safeMode = false; // Turn off safe mode if entering draw mode
+    // Pause auto-scroll — annotating a moving canvas is not useful
+    if (state.autoScrollSpeed > 0) {
+      stopAutoScrollAnimation();
+    }
+  } else if (state.autoScrollSpeed > 0) {
+    // Resume auto-scroll when draw mode is exited
+    startAutoScrollAnimation();
   }
   syncAdvancedTools();
   // Draw mode is NOT persisted between reloads
@@ -1479,12 +1499,17 @@ function applyMobileView() {
   const paneCount = iframes.length;
   const containerW = ui.frame.clientWidth || document.body.clientWidth;
   const containerH = ui.frame.clientHeight || document.body.clientHeight;
-  const paneWidth = paneCount > 1 ? containerW / 2 : containerW;
-  const scale = paneWidth / MOBILE_WIDTH;
+
+  // In a 2-column layout (2–4 panes), each cell is half the container width/height.
+  const hasRows = paneCount >= 3;
+  const hasCols = paneCount >= 2;
+  const paneW = hasCols ? containerW / 2 : containerW;
+  const paneH = hasRows ? containerH / 2 : containerH;
+  const scale = paneW / MOBILE_WIDTH;
 
   iframes.forEach(iframe => {
     iframe.style.width = `${MOBILE_WIDTH}px`;
-    iframe.style.height = `${containerH / scale}px`;
+    iframe.style.height = `${paneH / scale}px`;
     iframe.style.transformOrigin = "top left";
     iframe.style.transform = `scale(${scale})`;
   });
