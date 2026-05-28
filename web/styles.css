@@ -67,7 +67,9 @@ body {
   padding: 6px 8px;
   background: transparent; /* No fill */
   border: none; /* No outline */
-  transition: all 0.3s ease;
+  /* Animate only opacity + transform; "all" would re-animate position and
+     background on every state change, causing flicker and unexpected transitions */
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.3s ease;
 }
 
 /* When empty, center the toolbar in the middle of the slide */
@@ -215,7 +217,9 @@ body {
 /* â”€â”€ Floating Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 .floating-toggle {
-  display: none;
+  /* Always in layout — use opacity/pointer-events instead of display:none
+     so the show/hide transition is smooth and never flashes */
+  display: flex;
   position: absolute;
   top: 8px;
   left: 8px;
@@ -230,7 +234,9 @@ body {
   color: var(--text-light);
   box-shadow: var(--shadow);
   cursor: pointer;
-  transition: background 0.15s;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, background 0.15s;
 }
 
 .floating-toggle:hover {
@@ -423,7 +429,8 @@ body {
 }
 
 .shell.is-chrome-hidden .floating-toggle {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* â”€â”€ Slideshow Mode (overrides chrome toggle) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -558,6 +565,7 @@ body {
   inset: 0;
   z-index: 4;
   background: transparent;
+  cursor: not-allowed; /* Signal to users that the content is locked */
 }
 .safe-mode-overlay.is-hidden {
   display: none;
