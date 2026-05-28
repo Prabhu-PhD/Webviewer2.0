@@ -52,6 +52,7 @@ const state = {
 };
 
 let _autoScrollLast = null; // rAF timestamp tracking
+let _iframeCache = [];      // cached NodeList snapshot, invalidated on each loadIntoFrame
 
 const ui = {};
 let toastTimer = null;
@@ -128,7 +129,10 @@ function bindEvents() {
   ui.zoomInBtn.addEventListener("click", zoomIn);
   ui.zoomOutBtn.addEventListener("click", zoomOut);
   ui.zoomLevelBtn.addEventListener("click", resetZoom);
-  ui.moreBtn.addEventListener("click", () => ui.moreDropdown.classList.toggle("is-hidden"));
+  ui.moreBtn.addEventListener("click", () => {
+    const open = ui.moreDropdown.classList.toggle("is-hidden") === false;
+    ui.moreBtn.setAttribute("aria-expanded", String(open));
+  });
   ui.desktopFitBtn.addEventListener("click", toggleDesktopFit);
   ui.safeModeBtn.addEventListener("click", toggleSafeMode);
   ui.drawModeBtn.addEventListener("click", toggleDrawMode);
@@ -150,7 +154,10 @@ function bindEvents() {
   });
 
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
-  ui.refreshBtn.addEventListener("click", () => ui.refreshDropdown.classList.toggle("is-hidden"));
+  ui.refreshBtn.addEventListener("click", () => {
+    const open = ui.refreshDropdown.classList.toggle("is-hidden") === false;
+    ui.refreshBtn.setAttribute("aria-expanded", String(open));
+  });
   ui.refreshList.addEventListener("click", handleRefreshOptionClick);
 
   // Escape: close any open overlay or dropdown
@@ -300,6 +307,7 @@ function loadIntoFrame(rawInput, options = {}) {
   hideBlockOverlay();
 
   ui.frame.innerHTML = ""; // Clear existing grid
+  _iframeCache = [];       // Invalidate iframe cache
 
   // Reset auto-scroll position so the new page always starts from the top.
   state.autoScrollPos = 0;
@@ -391,6 +399,7 @@ function loadIntoFrame(rawInput, options = {}) {
   if (state.pendingLoads > 0) {
     state.isLoading = true;
     ui.loadingBar.classList.add("is-active");
+    ui.loadingBar.removeAttribute("aria-hidden");
     clearTimeout(state.loadTimer);
     state.loadTimer = window.setTimeout(handleLoadTimeout, LOAD_TIMEOUT_MS);
   }
@@ -406,6 +415,7 @@ function handleFrameLoaded() {
 
   state.isLoading = false;
   ui.loadingBar.classList.remove("is-active");
+  ui.loadingBar.setAttribute("aria-hidden", "true");
   clearTimeout(state.loadTimer);
 
   if (state.currentUrl) hideToast();
@@ -527,7 +537,8 @@ function syncActiveView(options = {}) {
 }
 
 function forceRefresh() {
-  const iframes = ui.frame.querySelectorAll("iframe");
+  _iframeCache = []; // iframes are being replaced; force a fresh query
+  const iframes = Array.from(ui.frame.querySelectorAll("iframe"));
   iframes.forEach(iframe => {
     const newIframe = document.createElement("iframe");
     newIframe.src = iframe.src;
@@ -838,21 +849,9 @@ function adaptGoogleDocsUrl(url) {
   const docType = pathParts[0] ?? "";
   const documentId = pathParts[2] ?? "";
 
+  // URL doesn't have the standard /type/d/ID structure — pass through
   if (pathParts[1] !== "d" || !documentId) {
-  
-  if (docType === "forms" && pathParts[2] === "viewform") {
-    return {
-      note: "Converted to Google Forms embed.",
-      providerName: "Google Forms",
-      url: new URL(`https://docs.google.com/forms/d/${documentId}/viewform?embedded=true`)
-    };
-  }
-
-  return {
-    note: "",
-    providerName: "Google Workspace",
-    url
-  };
+    return { note: "", providerName: "Google Workspace", url };
   }
 
   if (docType === "presentation") {
@@ -879,11 +878,21 @@ function adaptGoogleDocsUrl(url) {
     };
   }
 
-  return {
-    note: "",
-    providerName: "Google Workspace",
-    url
-  };
+  if (docType === "forms") {
+    // ?embedded=true removes the Google header bar so the form fills the iframe
+    const embedUrl = new URL(url.toString());
+    if (!embedUrl.searchParams.has("embedded")) {
+      embedUrl.searchParams.set("embedded", "true");
+    }
+    const transformed = embedUrl.toString() !== url.toString();
+    return {
+      note: transformed ? "Converted to Google Forms embed." : "",
+      providerName: "Google Forms",
+      url: embedUrl
+    };
+  }
+
+  return { note: "", providerName: "Google Workspace", url };
 }
 
 function adaptPowerBiUrl(url) {
@@ -1079,17 +1088,21 @@ function showQrCode() {
     showToast("Load a URL first to generate a QR code.", "warning");
     return;
   }
-  
+
   try {
     if (window.QRious) {
       new QRious({
         element: ui.qrCanvas,
         value: state.currentUrl,
         size: 200,
-        background: 'white',
-        foreground: 'black'
+        background: "white",
+        foreground: "black"
       });
+      // Update accessible label with the actual URL
+      ui.qrCanvas.setAttribute("aria-label", `QR code for ${state.currentUrl}`);
       ui.qrOverlay.classList.remove("is-hidden");
+      // Move focus to the close button so keyboard/AT users land inside the overlay
+      ui.qrCloseBtn.focus();
     } else {
       showToast("QR code library not loaded.", "error");
     }
@@ -1100,6 +1113,8 @@ function showQrCode() {
 
 function hideQrCode() {
   ui.qrOverlay.classList.add("is-hidden");
+  // Return focus to the button that opened the overlay
+  ui.qrBtn.focus();
 }
 
 /* ── Recent Links ───────────────────────────────────────────────── */
@@ -1157,9 +1172,11 @@ function handleDocumentClick(event) {
   }
   if (!ui.refreshBtn.contains(event.target) && !ui.refreshDropdown.contains(event.target)) {
     ui.refreshDropdown.classList.add("is-hidden");
+    ui.refreshBtn.setAttribute("aria-expanded", "false");
   }
   if (!ui.moreBtn.contains(event.target) && !ui.moreDropdown.contains(event.target)) {
     ui.moreDropdown.classList.add("is-hidden");
+    ui.moreBtn.setAttribute("aria-expanded", "false");
   }
 }
 
@@ -1197,13 +1214,17 @@ function resetZoom() {
 
 function syncZoomState() {
   if (ui.zoomLevelBtn) {
+    let label;
     if (state.desktopFit) {
-      ui.zoomLevelBtn.textContent = "Fit";
+      label = "Fit";
     } else if (state.mobileView) {
-      ui.zoomLevelBtn.textContent = "390px";
+      label = "390px";
     } else {
-      ui.zoomLevelBtn.textContent = `${Math.round(state.zoom * 100)}%`;
+      label = `${Math.round(state.zoom * 100)}%`;
     }
+    ui.zoomLevelBtn.textContent = label;
+    // Keep aria-label in sync so screen readers announce the correct value
+    ui.zoomLevelBtn.setAttribute("aria-label", `Reset zoom — current: ${label}`);
   }
   if (state.desktopFit || state.mobileView) return;
   applyFrameTransform();
@@ -1217,7 +1238,7 @@ function toggleDesktopFit() {
     if (state.mobileView) {
       state.mobileView = false;
       ui.mobileViewBtn.classList.remove("is-active");
-      ui.frame.querySelectorAll("iframe").forEach(f => {
+      getFrameIframes().forEach(f => {
         f.style.width = "100%";
         f.style.height = "100%";
         f.style.transform = "";
@@ -1386,8 +1407,10 @@ function resizeCanvas() {
 
 function getPos(e) {
   const rect = ui.drawCanvas.getBoundingClientRect();
-  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-  const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+  // Use nullish coalescing so x=0 / y=0 (left/top edge) stays correct
+  const touch = e.touches?.[0];
+  const clientX = touch ? touch.clientX : e.clientX;
+  const clientY = touch ? touch.clientY : e.clientY;
   return {
     x: clientX - rect.left,
     y: clientY - rect.top
@@ -1431,6 +1454,17 @@ function clearCanvas() {
   if (ctx && ui.drawCanvas) {
     ctx.clearRect(0, 0, ui.drawCanvas.width, ui.drawCanvas.height);
   }
+}
+
+/* ── iframe cache ────────────────────────────────────────────────── */
+
+// Returns a cached array of iframes inside #viewer-frame. The cache is
+// populated on first call after each loadIntoFrame (which sets _iframeCache=[]).
+function getFrameIframes() {
+  if (_iframeCache.length === 0) {
+    _iframeCache = Array.from(getFrameIframes());
+  }
+  return _iframeCache;
 }
 
 /* ── Frame Transform Composition ────────────────────────────────── */
@@ -1477,7 +1511,7 @@ function toggleMobileView() {
     applyMobileView();
   } else {
     // Restore normal iframe sizing
-    ui.frame.querySelectorAll("iframe").forEach(f => {
+    getFrameIframes().forEach(f => {
       f.style.width = "100%";
       f.style.height = "100%";
       f.style.transform = "";
@@ -1495,7 +1529,7 @@ function applyMobileView() {
   if (!state.mobileView) return;
 
   const MOBILE_WIDTH = 390; // iPhone-class viewport width in CSS px
-  const iframes = ui.frame.querySelectorAll("iframe");
+  const iframes = getFrameIframes();
   const paneCount = iframes.length;
   const containerW = ui.frame.clientWidth || document.body.clientWidth;
   const containerH = ui.frame.clientHeight || document.body.clientHeight;
@@ -1544,14 +1578,14 @@ function toggleAutoScroll() {
 // content to reveal. The translateY in autoScrollTick pans through it.
 function applyAutoScrollIframes() {
   const containerH = ui.frame.clientHeight || 400;
-  ui.frame.querySelectorAll("iframe").forEach(iframe => {
+  getFrameIframes().forEach(iframe => {
     iframe.style.height = `${containerH * 3}px`;
   });
 }
 
 // Restore iframes to their normal full-height sizing.
 function resetAutoScrollIframes() {
-  ui.frame.querySelectorAll("iframe").forEach(iframe => {
+  getFrameIframes().forEach(iframe => {
     iframe.style.height = "100%";
     iframe.style.transform = "";
     iframe.style.transformOrigin = "";
@@ -1583,7 +1617,7 @@ function autoScrollTick(timestamp) {
     const maxScroll = containerH * 2; // 3× iframe height − 1× visible = 2× scrollable
     state.autoScrollPos = (state.autoScrollPos + speed * delta) % maxScroll;
 
-    ui.frame.querySelectorAll("iframe").forEach(iframe => {
+    getFrameIframes().forEach(iframe => {
       iframe.style.transformOrigin = "top left";
       iframe.style.transform = `translateY(-${state.autoScrollPos}px)`;
     });

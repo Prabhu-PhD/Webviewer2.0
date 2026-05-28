@@ -26,7 +26,7 @@
       </div>
 
       <div class="refresh-container">
-        <button class="toolbar-btn" id="refresh-btn" type="button" title="Auto-Refresh" aria-label="Auto-Refresh">
+        <button class="toolbar-btn" id="refresh-btn" type="button" title="Auto-Refresh" aria-label="Auto-Refresh" aria-expanded="false" aria-haspopup="listbox">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
           </svg>
@@ -76,12 +76,12 @@
       <div class="divider" role="separator" aria-hidden="true"></div>
 
       <div class="more-container">
-        <button class="toolbar-btn" id="more-btn" type="button" title="More tools" aria-label="More tools">
+        <button class="toolbar-btn" id="more-btn" type="button" title="More tools" aria-label="More tools" aria-expanded="false" aria-haspopup="menu">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
           </svg>
         </button>
-        <div class="more-dropdown is-hidden" id="more-dropdown">
+        <div class="more-dropdown is-hidden" id="more-dropdown" role="menu">
           <button class="more-item" id="desktop-fit-btn" type="button">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
             <span>Desktop View</span>
@@ -125,7 +125,7 @@
       </button>
     </div>
 
-    <div class="toast is-hidden" id="toast"></div>
+    <div class="toast is-hidden" id="toast" role="alert" aria-live="polite" aria-atomic="true"></div>
 
     <button class="floating-toggle" id="floating-toggle" type="button" title="Show toolbar" aria-label="Show toolbar">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -133,7 +133,7 @@
       </svg>
     </button>
 
-    <div class="loading-bar" id="loading-bar"></div>
+    <div class="loading-bar" id="loading-bar" role="progressbar" aria-label="Loading" aria-hidden="true"></div>
 
     <div class="empty-state" id="empty-state">
       <div class="empty-hints">
@@ -178,7 +178,7 @@
     <div class="qr-overlay is-hidden" id="qr-overlay">
       <div class="block-card qr-card">
         <h2>Scan this link</h2>
-        <canvas id="qr-canvas"></canvas>
+        <canvas id="qr-canvas" role="img" aria-label="QR code for current URL"></canvas>
         <div class="block-actions">
           <button class="block-btn" id="qr-close-btn" type="button">Close</button>
         </div>

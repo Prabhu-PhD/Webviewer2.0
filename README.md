@@ -90,16 +90,29 @@ The practical local workflow is documented in [docs/local-dev.md](/C:/Users/prab
 - Detects edit vs slide-show view where the host exposes that information.
 - Gives a clearer explanation when a page is probably blocked by `frame-ancestors` or `X-Frame-Options`.
 
-## Important Constraint
+## Important Constraints
 
-No PowerPoint add-in can force an arbitrary website to allow embedding. If a site sends restrictive CSP or `X-Frame-Options` headers, the viewer must respect that. The right long-term product answer is better diagnostics, better vendor-specific embed guidance, and optional provider integrations, not brittle hacks.
+**Embedding**: No PowerPoint add-in can force an arbitrary website to allow embedding. If a site sends restrictive CSP or `X-Frame-Options` headers, the viewer must respect that. The right long-term product answer is better diagnostics, better vendor-specific embed guidance, and optional provider integrations, not brittle hacks.
+
+**Runtime requirement**: This add-in uses ES modules, CSS custom properties, and other modern web APIs. It requires the Chromium-based **WebView2 runtime** that ships with Office 365 / Office 2021 and newer. It will not run in the legacy IE-based WebView used by some older Office 2016/2019 installations.
+
+**Mobile Office**: Content add-ins (`xsi:type="ContentApp"`) are a desktop-only feature. They are not supported in Office for iOS or Android.
+
+## AppSource Readiness Checklist
+
+Before submitting to Microsoft AppSource the manifest needs:
+
+- `<PrivacyStatementUrl>` — required by Microsoft
+- `<TermsOfUseUrl>` — required by Microsoft
+- `<ProviderName>` updated to a proper individual or company name
+- Longer `<Description>` text (AppSource requires 150–4000 characters)
 
 ## Suggested Next Milestones
 
 1. Add provider presets and templates for common live-slide use cases such as timers, Power BI, maps, and internal dashboards.
 2. Add a companion task pane for bookmarks, slide presets, and failure diagnostics.
 3. Add telemetry and structured diagnostics for blocked embeds and load failures.
-4. Add a deployment path for AppSource submission, including branded assets and support/privacy pages.
+4. Complete AppSource submission metadata (privacy policy, terms of use, full description).
 
 ## Research Notes
 
