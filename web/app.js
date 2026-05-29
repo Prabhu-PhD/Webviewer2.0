@@ -662,8 +662,14 @@ function prepareEmbedRequest(rawInput) {
     : "";
   const adapted = adaptProviderUrl(parsedUrl);
 
+  // Use the ADAPTED URL's hostname for the blocked-domain check so that
+  // provider adapters that switch to an embeddable subdomain (e.g. Google Maps
+  // converting www.google.com/maps/embed → maps.google.com) are not incorrectly
+  // blocked by the www.google.com entry in KNOWN_BLOCKED_DOMAINS.
+  const adaptedHostname = new URL(adapted.url.toString()).hostname;
+
   return {
-    hostname: parsedUrl.hostname,
+    hostname: adaptedHostname,
     note: joinNotes(sourceNote, adapted.note),
     normalizedUrl: adapted.url.toString(),
     providerName: adapted.providerName
@@ -748,6 +754,37 @@ function adaptProviderUrl(url) {
 
   if (hostname === "open.spotify.com") {
     return adaptSpotifyUrl(url);
+  }
+
+  // Google Maps — must come after the generic google.com block so the adapter
+  // can switch the hostname to maps.google.com (which is not in KNOWN_BLOCKED_DOMAINS).
+  if (hostname === "google.com" && url.pathname.startsWith("/maps")) {
+    return adaptGoogleMapsUrl(url);
+  }
+
+  if (hostname === "maps.google.com") {
+    return adaptGoogleMapsUrl(url);
+  }
+
+  // Google Maps short links (mobile share) — can't resolve without a server
+  if (hostname === "maps.app.goo.gl" || hostname === "goo.gl") {
+    throw new Error("Google Maps short links can't be embedded directly. In Google Maps, tap Share → Embed a map and paste the iframe code instead.");
+  }
+
+  if (hostname === "lookerstudio.google.com" || hostname === "datastudio.google.com") {
+    return adaptLookerStudioUrl(url);
+  }
+
+  if (hostname === "mentimeter.com") {
+    return adaptMentimeterUrl(url);
+  }
+
+  if (hostname === "padlet.com") {
+    return adaptPadletUrl(url);
+  }
+
+  if (hostname === "public.tableau.com") {
+    return adaptTableauPublicUrl(url);
   }
 
   return {
@@ -1022,6 +1059,103 @@ function adaptSpotifyUrl(url) {
     };
   }
   return { note: "", providerName: "Spotify", url };
+}
+
+function adaptGoogleMapsUrl(url) {
+  // Already an embed path — switch hostname to maps.google.com so the
+  // known-blocked-domain check on www.google.com doesn't fire.
+  if (url.pathname.startsWith("/maps/embed")) {
+    const embedUrl = new URL(url.toString());
+    embedUrl.hostname = "maps.google.com";
+    return { note: "", providerName: "Google Maps", url: embedUrl };
+  }
+
+  // Place/search URL — extract coordinates and build a simple embed.
+  const coordMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (coordMatch) {
+    const lat = coordMatch[1];
+    const lng = coordMatch[2];
+    const zoomMatch = url.pathname.match(/@-?\d+\.\d+,-?\d+\.\d+,(\d+)z/);
+    const zoom = zoomMatch ? zoomMatch[1] : "14";
+    const embedUrl = new URL("https://maps.google.com/maps");
+    embedUrl.searchParams.set("q", `${lat},${lng}`);
+    embedUrl.searchParams.set("z", zoom);
+    embedUrl.searchParams.set("output", "embed");
+    return {
+      note: "Converted to Google Maps embed.",
+      providerName: "Google Maps",
+      url: embedUrl
+    };
+  }
+
+  // Can't auto-convert — advise using the Maps share dialog.
+  return {
+    note: "For best results: in Google Maps use Share → Embed a map and paste the iframe code here.",
+    providerName: "Google Maps",
+    url: new URL(url.toString().replace(/^https?:\/\/www\.google\.com/, "https://maps.google.com"))
+  };
+}
+
+function adaptLookerStudioUrl(url) {
+  // From: /reporting/ID/page/P_ID
+  // To:   /embed/reporting/ID/page/P_ID
+  if (url.pathname.startsWith("/reporting/") && !url.pathname.startsWith("/embed/")) {
+    const embedUrl = new URL(url.toString());
+    embedUrl.pathname = "/embed" + url.pathname;
+    return {
+      note: "Converted to Looker Studio embed.",
+      providerName: "Looker Studio",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Looker Studio", url };
+}
+
+function adaptMentimeterUrl(url) {
+  // From: /s/HASH/SLIDE_ID
+  // To:   /embed/HASH/SLIDE_ID
+  const match = url.pathname.match(/^\/s\/([^/]+)(?:\/([^/]+))?/);
+  if (match) {
+    const part1 = match[1];
+    const part2 = match[2];
+    const embedPath = part2 ? `/embed/${part1}/${part2}` : `/embed/${part1}`;
+    const embedUrl = new URL(`https://www.mentimeter.com${embedPath}`);
+    return {
+      note: "Converted to Mentimeter embed.",
+      providerName: "Mentimeter",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Mentimeter", url };
+}
+
+function adaptPadletUrl(url) {
+  // Append /embed if not already present
+  if (!url.pathname.endsWith("/embed")) {
+    const embedUrl = new URL(url.toString());
+    embedUrl.pathname = url.pathname.replace(/\/?$/, "/embed");
+    return {
+      note: "Converted to Padlet embed.",
+      providerName: "Padlet",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Padlet", url };
+}
+
+function adaptTableauPublicUrl(url) {
+  // Add embed query params to Tableau Public view URLs
+  if (!url.searchParams.has(":embed")) {
+    const embedUrl = new URL(url.toString());
+    embedUrl.searchParams.set(":embed", "y");
+    embedUrl.searchParams.set(":showVizHome", "no");
+    return {
+      note: "Converted to Tableau Public embed.",
+      providerName: "Tableau Public",
+      url: embedUrl
+    };
+  }
+  return { note: "", providerName: "Tableau Public", url };
 }
 
 /* ── Utilities ──────────────────────────────────────────────────── */
