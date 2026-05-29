@@ -1471,7 +1471,7 @@ function clearCanvas() {
 // populated on first call after each loadIntoFrame (which sets _iframeCache=[]).
 function getFrameIframes() {
   if (_iframeCache.length === 0) {
-    _iframeCache = Array.from(getFrameIframes());
+    _iframeCache = Array.from(ui.frame.querySelectorAll("iframe"));
   }
   return _iframeCache;
 }

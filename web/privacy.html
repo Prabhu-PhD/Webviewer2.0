@@ -10,21 +10,24 @@
   <main class="support-shell">
     <p class="eyebrow">Legal</p>
     <h1>Privacy Policy</h1>
-    <p class="support-lead">Webviewer 2.0 is designed with a simple privacy principle: your data stays in your document. We collect nothing.</p>
+    <p class="support-lead">Webviewer 2.0 is designed with a simple privacy principle: we run no servers, collect no analytics, and send nothing to Webviewer 2.0. All storage stays on your own device or inside your document.</p>
 
     <section class="support-card">
       <h2>What we collect</h2>
-      <p>Nothing. Webviewer 2.0 does not collect, transmit, or store any personal data on any server. There are no accounts, no analytics, no tracking, and no telemetry of any kind.</p>
+      <p>Nothing is sent to any Webviewer 2.0 server. There are no accounts, no analytics, no tracking pixels, and no telemetry from this add-in.</p>
     </section>
 
     <section class="support-card">
-      <h2>How your data is used</h2>
+      <h2>How your data is stored locally</h2>
       <ul>
         <li>
           <strong>URLs you paste</strong> are loaded directly into an iframe inside your PowerPoint slide. They are not sent to any Webviewer 2.0 server.
         </li>
         <li>
-          <strong>Document settings</strong> — the last URL(s) you loaded are saved in the PowerPoint file's own built-in settings storage so the slide remembers them when you reopen the presentation. This data lives entirely inside your document file and never leaves it.
+          <strong>Document settings</strong> — the current URL and toolbar visibility are saved in the PowerPoint file's own built-in settings storage so the slide remembers them when you reopen the presentation. This data lives inside your document file.
+        </li>
+        <li>
+          <strong>Browser storage (localStorage)</strong> — settings such as your toolbar preferences, zoom level, dark mode, and recent URL history are also saved in your browser's local storage on the device you are using. This data never leaves your device and is not accessible to Webviewer 2.0 or any third party.
         </li>
         <li>
           <strong>QR codes</strong> are generated entirely within your browser using a local library. The URL is never sent to a QR service or any third party.
@@ -33,6 +36,11 @@
           <strong>Auto-refresh</strong> simply reloads the same iframe at the interval you choose. No requests are made to Webviewer 2.0 servers.
         </li>
       </ul>
+    </section>
+
+    <section class="support-card">
+      <h2>Microsoft Office.js</h2>
+      <p>This add-in uses Microsoft's Office.js library, which is loaded from Microsoft's servers (<code>appsforoffice.microsoft.com</code>). Microsoft may collect telemetry through that library in accordance with <a href="https://privacy.microsoft.com/en-us/privacystatement" target="_blank" rel="noopener">Microsoft's Privacy Statement</a>. Webviewer 2.0 has no control over and no access to that data.</p>
     </section>
 
     <section class="support-card">
