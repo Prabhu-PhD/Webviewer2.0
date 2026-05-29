@@ -831,3 +831,47 @@ iframe.smart-invert {
   font-size: 0.9rem;
   line-height: 1.8;
 }
+
+.support-card p {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: #444;
+  line-height: 1.6;
+}
+
+.support-card p:last-child {
+  margin-bottom: 0;
+}
+
+.support-card code {
+  font-family: monospace;
+  font-size: 0.85em;
+  background: #f0f0f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.support-card a {
+  color: #e8844a;
+}
+
+.support-legal {
+  margin-top: 32px;
+  padding-bottom: 40px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #888;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.support-legal a {
+  color: #888;
+  text-decoration: underline;
+}
+
+.support-legal a:hover {
+  color: #e8844a;
+}

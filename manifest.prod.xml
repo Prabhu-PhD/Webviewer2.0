@@ -4,13 +4,15 @@
            xsi:type="ContentApp">
   <Id>b78a992d-9f5b-43d8-8422-99abfe32e01b</Id>
   <Version>2.0.5.0</Version>
-  <ProviderName>Webviewer2</ProviderName>
+  <ProviderName>Prabhu Palanichamy</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Webviewer 2.0"/>
-  <Description DefaultValue="Embed live, secure web content directly on a PowerPoint slide."/>
+  <Description DefaultValue="Embed live web content directly on a PowerPoint slide. Paste any URL — YouTube, Vimeo, Google Slides, dashboards, timers, and more — and it appears as a live frame inside your presentation. Supports split-screen with up to 4 URLs, auto-refresh, draw mode, mobile view, zoom, QR sharing, and dark toolbar. Free replacement for the retired Microsoft Web Viewer add-in."/>
   <IconUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/support.html"/>
+  <PrivacyStatementUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/privacy.html"/>
+  <TermsOfUseUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/terms.html"/>
   <AppDomains>
     <AppDomain>https://prabhu-phd.github.io</AppDomain>
   </AppDomains>

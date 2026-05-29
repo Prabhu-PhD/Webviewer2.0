@@ -3,33 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Slide Web Viewer Support</title>
+  <title>Support — Webviewer 2.0</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body class="support-body">
   <main class="support-shell">
     <p class="eyebrow">Support</p>
-    <h1>Slide Web Viewer</h1>
-    <p class="support-lead">This add-in is meant to embed live web content inside PowerPoint slides while being clearer about why some pages cannot load.</p>
+    <h1>Webviewer 2.0</h1>
+    <p class="support-lead">A free PowerPoint add-in that embeds live web content directly on your slides — YouTube, dashboards, timers, Google Slides, and more.</p>
 
     <section class="support-card">
       <h2>Common reasons a page will not appear</h2>
       <ul>
         <li>The page is not using HTTPS.</li>
-        <li>The site blocks iframe embedding with `frame-ancestors` or `X-Frame-Options`.</li>
-        <li>The URL is a normal page link when the provider expects a special embed link.</li>
-        <li>The Office host or environment cannot reach the target page because of network policy.</li>
+        <li>The site blocks iframe embedding with <code>frame-ancestors</code> or <code>X-Frame-Options</code> headers.</li>
+        <li>You pasted a normal browser URL when the provider has a separate embed or share link.</li>
+        <li>Your network policy prevents Office from reaching the target page.</li>
       </ul>
     </section>
 
     <section class="support-card">
-      <h2>Best results</h2>
+      <h2>Tips for best results</h2>
       <ul>
-        <li>Use provider-supplied embed URLs when available.</li>
-        <li>Test in both PowerPoint desktop and PowerPoint on the web if your workflow spans both.</li>
-        <li>Keep a browser fallback ready for sites you do not control.</li>
+        <li>Use the provider's own embed or share link when available. YouTube, Vimeo, Loom, Google Slides, and Google Docs URLs are automatically converted.</li>
+        <li>For split-screen, separate up to 4 URLs with commas in the address bar.</li>
+        <li>Use <strong>Auto-Refresh</strong> (in the toolbar) to keep live dashboards or feeds current during a presentation.</li>
+        <li>Use <strong>Mobile View</strong> to see how a site looks at phone width.</li>
+        <li>If a page blocks embedding, use <strong>Open in Browser</strong> or the <strong>QR code</strong> button to hand off to a phone or second screen.</li>
       </ul>
     </section>
+
+    <section class="support-card">
+      <h2>Requirements</h2>
+      <ul>
+        <li>Microsoft 365 or Office 2021 (desktop) with the WebView2 runtime.</li>
+        <li>Content add-ins are a desktop-only feature — not available on iOS or Android Office apps.</li>
+      </ul>
+    </section>
+
+    <section class="support-card">
+      <h2>Report an issue or request a feature</h2>
+      <p>Open an issue on <a href="https://github.com/Prabhu-PhD/Webviewer2.0" target="_blank" rel="noopener">GitHub</a>. Bug reports are most useful with the URL you were trying to embed and a description of what you expected vs. what happened.</p>
+    </section>
+
+    <nav class="support-legal" aria-label="Legal">
+      <a href="./privacy.html">Privacy Policy</a>
+      <span aria-hidden="true">·</span>
+      <a href="./terms.html">Terms of Use</a>
+    </nav>
   </main>
 </body>
 </html>
