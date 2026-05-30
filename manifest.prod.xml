@@ -25,7 +25,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=14"/>
+    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=15"/>
     <RequestedWidth>720</RequestedWidth>
     <RequestedHeight>420</RequestedHeight>
   </DefaultSettings>

@@ -48,7 +48,10 @@ const state = {
   isLoading: false,
   pendingLoads: 0,
   loadTimer: null,
-  officeReady: false
+  officeReady: false,
+  lastView: null,              // "edit" | "read" — so we react only to real transitions
+  _lastSavedChrome: undefined, // last chromeVisible written to document settings
+  _lastSavedUrl: undefined     // last currentUrl written to document settings
 };
 
 let _autoScrollLast = null; // rAF timestamp tracking
@@ -283,8 +286,7 @@ function handleLoadSubmit(event) {
   }
   
   // Smart URL Validation
-  const looksLikeUrl = /^((https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}|<iframe\s)/i.test(rawInput);
-  if (!looksLikeUrl) {
+  if (!looksLikeUrlOrIframe(rawInput)) {
     showToast("Please enter a valid link or iframe snippet.", "warning");
     return;
   }
@@ -321,8 +323,11 @@ function loadIntoFrame(rawInput, options = {}) {
   
   ui.emptyState.classList.add("is-hidden");
 
-  // Split by comma, up to 4 URLs
-  const urlStrings = inputUrlString.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
+  // Split into up to 4 URLs for split-screen — but only when the commas
+  // genuinely separate distinct URLs (see splitUrls). A single URL that
+  // happens to contain commas (Google Maps @lat,lng,zoom; dashboard query
+  // params) is kept intact.
+  const urlStrings = splitUrls(inputUrlString);
   ui.frame.dataset.count = urlStrings.length;
 
   // Force inline grid styles to prevent CSS caching issues
@@ -463,7 +468,10 @@ function dismissBlockOverlay() {
 }
 
 function openCurrentUrl() {
-  const candidate = state.currentUrl || ui.urlInput.value.trim();
+  // Use the resolved first URL so split-screen (comma-joined) input and iframe
+  // snippets are not handed to the browser verbatim.
+  const resolved = getResolvedUrls();
+  const candidate = resolved[0] || (state.currentUrl || ui.urlInput.value || "").trim();
 
   if (!candidate) {
     showToast("Add a URL before opening it in a browser.", "warning");
@@ -504,8 +512,17 @@ function syncActiveView(options = {}) {
     }
 
     const nextView = String(result.value).toLowerCase() === "read" ? "read" : "edit";
+    const viewChanged = state.lastView !== nextView;
+    state.lastView = nextView;
     ui.shell.dataset.view = nextView;
-    
+
+    // React only when the view actually transitioned. A plain window refocus
+    // (the visibilitychange fallback below) reports the SAME view — it must not
+    // reload the iframe or clobber the saved chrome state.
+    if (!viewChanged) {
+      return;
+    }
+
     if (nextView === "read") {
       document.body.classList.add("is-presentation");
 
@@ -612,6 +629,15 @@ function persistToDocumentSettings() {
     return;
   }
 
+  // Only write + save when a value that actually lives in the document has
+  // changed. Otherwise every zoom/theme/refresh toggle would re-save and mark
+  // the .pptx as modified, nagging the user to save on close.
+  if (state.chromeVisible === state._lastSavedChrome && state.currentUrl === state._lastSavedUrl) {
+    return;
+  }
+  state._lastSavedChrome = state.chromeVisible;
+  state._lastSavedUrl = state.currentUrl;
+
   settings.set(STORAGE_KEYS.chromeVisible, state.chromeVisible);
   if (state.currentUrl) {
     settings.set(STORAGE_KEYS.currentUrl, state.currentUrl);
@@ -689,6 +715,48 @@ function extractUrlCandidate(rawInput) {
   }
 
   return rawValue;
+}
+
+// True when a string looks like a bare/absolute URL or an <iframe> snippet.
+function looksLikeUrlOrIframe(value) {
+  return /^((https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}|<iframe\s)/i.test(String(value ?? "").trim());
+}
+
+// Splits input into up to 4 URLs for split-screen — but ONLY when every
+// comma-separated segment independently looks like a URL. Otherwise the commas
+// belong to a single URL (e.g. Google Maps @lat,lng,zoom or a dashboard's query
+// params) and the whole string is returned as a single entry. This prevents a
+// normal pasted URL from being shredded into several broken iframes.
+function splitUrls(input) {
+  const raw = String(input ?? "").trim();
+  if (!raw) {
+    return [];
+  }
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length > 1 && parts.every(looksLikeUrlOrIframe)) {
+    return parts.slice(0, 4);
+  }
+  return [raw];
+}
+
+// Returns the cleaned, https URLs for the current input — resolving iframe
+// snippets and provider embeds, and splitting only genuine multi-URL input.
+// Used by QR + Open-in-browser so they never act on raw snippet HTML or a
+// comma-joined split-screen string.
+function getResolvedUrls() {
+  const raw = (state.currentUrl || ui.urlInput.value || "").trim();
+  if (!raw) {
+    return [];
+  }
+  const urls = [];
+  splitUrls(raw).forEach((segment) => {
+    try {
+      urls.push(prepareEmbedRequest(segment).normalizedUrl);
+    } catch (e) {
+      // Skip segments that can't be normalized into an embeddable URL.
+    }
+  });
+  return urls;
 }
 
 /* ── Provider Adapters ──────────────────────────────────────────── */
@@ -1225,17 +1293,21 @@ function showQrCode() {
     return;
   }
 
+  // Encode the resolved first URL so split-screen + iframe snippets produce a
+  // scannable single link rather than raw HTML or a comma-joined string.
+  const target = getResolvedUrls()[0] || state.currentUrl;
+
   try {
     if (window.QRious) {
       new QRious({
         element: ui.qrCanvas,
-        value: state.currentUrl,
+        value: target,
         size: 200,
         background: "white",
         foreground: "black"
       });
       // Update accessible label with the actual URL
-      ui.qrCanvas.setAttribute("aria-label", `QR code for ${state.currentUrl}`);
+      ui.qrCanvas.setAttribute("aria-label", `QR code for ${target}`);
       ui.qrOverlay.classList.remove("is-hidden");
       // Move focus to the close button so keyboard/AT users land inside the overlay
       ui.qrCloseBtn.focus();
