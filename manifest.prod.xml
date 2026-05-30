@@ -7,7 +7,7 @@
   <ProviderName>Prabhu Palanichamy</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Webviewer 2.0"/>
-  <Description DefaultValue="Embed any live web page directly on a PowerPoint slide — dashboards, Google Slides, Looker Studio, Power BI, Miro, Figma, Padlet, Mentimeter, Google Forms, Microsoft Forms, maps, and more. Paste a URL and it appears as a live frame inside your presentation. Supports split-screen with up to 4 URLs, auto-refresh, draw mode, mobile view, zoom, and QR sharing. Free replacement for the retired Microsoft Web Viewer add-in."/>
+  <Description DefaultValue="Embed live web pages directly on a PowerPoint slide — dashboards, Google Slides, Looker Studio, Power BI, Miro, Figma, Padlet, Mentimeter, Google Forms, Microsoft Forms, maps, and more. Paste a URL and it appears as a live frame inside your presentation. Most public pages embed instantly; some sites that block framing can be opened in a browser or shared via QR. Supports split-screen with up to 4 URLs, auto-refresh, draw mode, mobile view, zoom, and QR sharing. Free replacement for the retired Microsoft Web Viewer add-in."/>
   <IconUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/support.html"/>
@@ -25,7 +25,7 @@
     </Sets>
   </Requirements>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=15"/>
+    <SourceLocation DefaultValue="https://prabhu-phd.github.io/Webviewer2.0/content.html?v=16"/>
     <RequestedWidth>720</RequestedWidth>
     <RequestedHeight>420</RequestedHeight>
   </DefaultSettings>

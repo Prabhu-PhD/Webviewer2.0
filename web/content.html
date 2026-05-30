@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Webviewer 2.0</title>
-  <link rel="stylesheet" href="./styles.css?v=15">
+  <link rel="stylesheet" href="./styles.css?v=16">
 </head>
 <body>
   <main class="shell" id="shell">
@@ -21,7 +21,7 @@
         </form>
         <div class="recent-dropdown is-hidden" id="recent-dropdown">
           <div class="recent-header">Recent Links</div>
-          <ul id="recent-list"></ul>
+          <ul id="recent-list" role="listbox" aria-label="Recent links"></ul>
         </div>
       </div>
 
@@ -32,13 +32,13 @@
           </svg>
         </button>
         <div class="recent-dropdown is-hidden" id="refresh-dropdown">
-          <ul id="refresh-list">
-            <li class="recent-item" data-val="reload">↺ Reload now</li>
+          <ul id="refresh-list" role="listbox" aria-label="Auto-refresh interval">
+            <li class="recent-item" data-val="reload" tabindex="0" role="option">↺ Reload now</li>
             <li class="refresh-rule" role="separator" aria-hidden="true"></li>
-            <li class="recent-item" data-val="0">Auto-Refresh: Off</li>
-            <li class="recent-item" data-val="30000">Every 30s</li>
-            <li class="recent-item" data-val="60000">Every 1m</li>
-            <li class="recent-item" data-val="300000">Every 5m</li>
+            <li class="recent-item" data-val="0" tabindex="0" role="option">Auto-Refresh: Off</li>
+            <li class="recent-item" data-val="30000" tabindex="0" role="option">Every 30s</li>
+            <li class="recent-item" data-val="60000" tabindex="0" role="option">Every 1m</li>
+            <li class="recent-item" data-val="300000" tabindex="0" role="option">Every 5m</li>
           </ul>
         </div>
       </div>
@@ -194,6 +194,6 @@
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="./qrious.min.js"></script>
-  <script type="module" src="./app.js?v=15"></script>
+  <script type="module" src="./app.js?v=16"></script>
 </body>
 </html>

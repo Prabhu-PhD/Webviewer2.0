@@ -15,17 +15,21 @@ const LOAD_TIMEOUT_MS = 9000;
 
 // Sites we know will absolutely refuse to load in an iframe due to X-Frame-Options or CSP frame-ancestors.
 // This saves the user 9 seconds of waiting for a timeout.
+// Exact-hostname matches only (see isKnownBlockedDomain). Bare words like
+// "google" never equal a real hostname, so they're omitted. Matching is exact
+// — NOT suffix-based — so supported subdomains (docs/maps/lookerstudio.google.com)
+// are unaffected.
 const KNOWN_BLOCKED_DOMAINS = [
-  "google", "google.com", "www.google.com",
-  "facebook", "facebook.com", "www.facebook.com",
-  "twitter", "twitter.com", "x.com",
-  "github", "github.com",
-  "reddit", "reddit.com", "www.reddit.com",
-  "amazon", "amazon.com", "www.amazon.com",
-  "apple", "apple.com", "www.apple.com",
-  "microsoft", "microsoft.com", "www.microsoft.com",
-  "linkedin", "linkedin.com", "www.linkedin.com",
-  "instagram", "instagram.com", "www.instagram.com"
+  "google.com", "www.google.com",
+  "facebook.com", "www.facebook.com",
+  "twitter.com", "x.com",
+  "github.com", "www.github.com",
+  "reddit.com", "www.reddit.com",
+  "amazon.com", "www.amazon.com",
+  "apple.com", "www.apple.com",
+  "microsoft.com", "www.microsoft.com",
+  "linkedin.com", "www.linkedin.com",
+  "instagram.com", "www.instagram.com"
 ];
 
 const state = {
@@ -162,6 +166,9 @@ function bindEvents() {
     ui.refreshBtn.setAttribute("aria-expanded", String(open));
   });
   ui.refreshList.addEventListener("click", handleRefreshOptionClick);
+  // Keyboard parity: Enter/Space activates the focused option in either dropdown.
+  ui.refreshList.addEventListener("keydown", handleListKeyActivate);
+  ui.recentList.addEventListener("keydown", handleListKeyActivate);
 
   // Escape: close any open overlay or dropdown
   document.addEventListener("keydown", (e) => {
@@ -268,7 +275,10 @@ function hydrateFromDocumentSettings() {
     }
 
     const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
-    if (typeof savedUrl === "string" && savedUrl.trim()) {
+    // Browser storage already hydrated synchronously at startup. Only re-load
+    // if the document-level URL differs, otherwise we'd load the same frame
+    // twice on every launch.
+    if (typeof savedUrl === "string" && savedUrl.trim() && savedUrl !== state.currentUrl) {
       state.currentUrl = savedUrl;
       ui.urlInput.value = savedUrl;
       safelyHydrateUrl(savedUrl);
@@ -436,6 +446,15 @@ function handleLoadTimeout() {
   state.isLoading = false;
   state.pendingLoads = 0;
   ui.loadingBar.classList.remove("is-active");
+
+  // In a split-screen view a single slow/blocked pane shouldn't blank out the
+  // whole grid — the other panes may have rendered fine. Surface a toast
+  // instead of the full-screen "can't be embedded" overlay.
+  if (ui.frame.querySelectorAll("iframe").length > 1) {
+    showToast("A pane took too long or blocks embedding. Use Open in Browser for that site.", "warning");
+    return;
+  }
+
   showBlockOverlay();
 }
 
@@ -835,8 +854,13 @@ function adaptProviderUrl(url) {
   }
 
   // Google Maps short links (mobile share) — can't resolve without a server
-  if (hostname === "maps.app.goo.gl" || hostname === "goo.gl") {
+  if (hostname === "maps.app.goo.gl" || (hostname === "goo.gl" && url.pathname.startsWith("/maps"))) {
     throw new Error("Google Maps short links can't be embedded directly. In Google Maps, tap Share → Embed a map and paste the iframe code instead.");
+  }
+
+  // Any other shortened link can't be resolved client-side.
+  if (hostname === "goo.gl") {
+    throw new Error("Shortened links can't be resolved here — paste the full destination URL instead.");
   }
 
   if (hostname === "lookerstudio.google.com" || hostname === "datastudio.google.com") {
@@ -853,6 +877,10 @@ function adaptProviderUrl(url) {
 
   if (hostname === "public.tableau.com") {
     return adaptTableauPublicUrl(url);
+  }
+
+  if (hostname === "openstreetmap.org") {
+    return adaptOpenStreetMapUrl(url);
   }
 
   return {
@@ -1226,6 +1254,46 @@ function adaptTableauPublicUrl(url) {
   return { note: "", providerName: "Tableau Public", url };
 }
 
+function adaptOpenStreetMapUrl(url) {
+  // Already the embeddable export endpoint — pass through.
+  if (url.pathname.startsWith("/export/embed.html")) {
+    return { note: "", providerName: "OpenStreetMap", url };
+  }
+
+  // A standard OSM URL carries the view in the hash: #map=ZOOM/LAT/LNG
+  const match = url.hash.match(/map=(\d+(?:\.\d+)?)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/);
+  if (match) {
+    const zoom = parseFloat(match[1]);
+    const lat = parseFloat(match[2]);
+    const lng = parseFloat(match[3]);
+    // Approximate a bounding box around the centre; span shrinks as zoom grows.
+    const lonSpan = 360 / Math.pow(2, zoom);
+    const latSpan = lonSpan / 2;
+    const bbox = [
+      (lng - lonSpan).toFixed(5),
+      (lat - latSpan).toFixed(5),
+      (lng + lonSpan).toFixed(5),
+      (lat + latSpan).toFixed(5)
+    ].join(",");
+    const embedUrl = new URL("https://www.openstreetmap.org/export/embed.html");
+    embedUrl.searchParams.set("bbox", bbox);
+    embedUrl.searchParams.set("layer", "mapnik");
+    embedUrl.searchParams.set("marker", `${lat},${lng}`);
+    return {
+      note: "Converted to OpenStreetMap embed.",
+      providerName: "OpenStreetMap",
+      url: embedUrl
+    };
+  }
+
+  // Couldn't parse a view — point the user at the embed export tool.
+  return {
+    note: "For a map, use OpenStreetMap's Share → HTML embed link.",
+    providerName: "OpenStreetMap",
+    url
+  };
+}
+
 /* ── Utilities ──────────────────────────────────────────────────── */
 
 function normalizeHostname(hostname) {
@@ -1359,6 +1427,8 @@ function renderRecentUrls() {
     li.className = "recent-item";
     li.textContent = url;
     li.title = url;
+    li.tabIndex = 0;
+    li.setAttribute("role", "option");
     li.addEventListener("click", () => {
       ui.urlInput.value = url;
       ui.recentDropdown.classList.add("is-hidden");
@@ -1482,6 +1552,18 @@ function applyDesktopFitScale(containerWidth) {
   ui.frame.style.height = `${100 / scale}%`;
 }
 
+// Enter/Space on a focused dropdown option behaves like a click, so the recent
+// and refresh menus are operable without a mouse.
+function handleListKeyActivate(event) {
+  if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") {
+    return;
+  }
+  const item = event.target.closest("li[role='option']");
+  if (!item) return;
+  event.preventDefault();
+  item.click();
+}
+
 function handleRefreshOptionClick(e) {
   const li = e.target.closest("li.recent-item");
   if (!li) return;
@@ -1519,6 +1601,22 @@ function applyRefreshInterval() {
       }
     }, state.refreshInterval);
   }
+
+  syncRefreshMenuState();
+}
+
+// Mark the currently-selected interval in the refresh dropdown so users can see
+// which cadence is active (the "Reload now" action is never the active state).
+function syncRefreshMenuState() {
+  if (!ui.refreshList) return;
+  ui.refreshList.querySelectorAll("li.recent-item[data-val]").forEach((li) => {
+    if (li.dataset.val === "reload") {
+      li.removeAttribute("aria-selected");
+      return;
+    }
+    const isActive = parseInt(li.dataset.val, 10) === state.refreshInterval;
+    li.setAttribute("aria-selected", String(isActive));
+  });
 }
 
 
