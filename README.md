@@ -1,119 +1,89 @@
-# Webviewer2
+# Webviewer 2.0
 
-Webviewer2 is a fresh foundation for a PowerPoint content add-in that embeds live web content directly on a slide.
+A free PowerPoint content add-in that embeds live web pages directly on a slide — the open-source replacement for the Microsoft Web Viewer add-in retired in December 2024.
 
-This repo starts from the problem the original Microsoft `Web Viewer` left behind:
+## Features
 
-- It was retired on December 2, 2024.
-- Users relied on it for dashboards, teaching aids, timers, status boards, and mixed slide plus web layouts.
-- It frequently failed without clear feedback when a site refused iframe embedding.
+- **Paste any URL** and it appears as a live frame on the slide
+- **15+ provider adapters** — YouTube, Vimeo, Loom, Google Slides, Google Docs, Google Sheets, Google Forms, Google Maps, Looker Studio, Power BI, Figma, Miro, Canva, Airtable, CodePen, Spotify, Mentimeter, Padlet, Tableau Public, OpenStreetMap, SharePoint — share URLs are auto-converted to embed URLs
+- **Split-screen** — separate up to 4 URLs with commas for side-by-side panes
+- **Auto-refresh** — keep live dashboards current during a presentation (30 s / 1 m / 5 m)
+- **Draw mode** — annotate over live content with a stylus or mouse
+- **Mobile View** — resizes the PowerPoint shape to phone width (390 px) so the embedded page renders its genuine responsive mobile layout
+- **Desktop Fit** — scales the embed to simulate a 1280 px desktop viewport
+- **Zoom controls** — zoom in/out with persistent per-shape zoom level
+- **Auto-scroll** — slow / medium / fast continuous pan through the page (for kiosk or display use)
+- **QR code** — generate a scannable link for the current URL in one click
+- **Dark toolbar** — matches dark-themed slides
+- **Invert theme** — inverts embedded page colours for dark-mode compatibility
+- **Safe Mode** — loads the page in a sandboxed overlay for untrusted content
+- **Presentation mode** — toolbar auto-hides when the slideshow starts; floating toggle to show/hide it; embedded page stays loaded across edit ↔ slideshow transitions without reloading
 
-This first cut gives us a clean, production-oriented base:
+## Per-shape state
 
-- A PowerPoint content add-in manifest using the add-in-only XML format.
-- A slide-embedded viewer shell with URL normalization and document-persisted state.
-- Provider-aware normalization for common share links such as YouTube, Vimeo, Loom, and Google Docs or Slides.
-- Better feedback when a site likely blocks embedding.
-- A tiny local web server, a localhost certificate workflow, and manifest validation helpers.
+Every add-in instance on every slide is fully independent. The following settings are stored in Office document settings (scoped to the specific shape in the .pptx file, not shared between instances):
 
-## Why Content Add-In First
+- Loaded URL
+- Zoom level
+- Desktop Fit / Mobile View
+- Safe Mode
+- Auto-refresh interval
+- Chrome visibility (toolbar shown/hidden)
 
-PowerPoint supports both task pane add-ins and content add-ins. We are using a content add-in because the original value proposition was seeing web content inside the slide itself, not beside the deck.
+Global user preferences (dark toolbar, invert theme) are stored in browser localStorage and shared across all instances.
 
-## Project Layout
+## Project layout
 
-- `manifest.localhost.xml`: local development manifest that points at `https://localhost:3000`
-- `manifest.hosted.xml`: hosted manifest template for a real deployment URL
-- `web/content.html`: the embedded slide surface
-- `web/app.js`: app logic for loading, persisting, and presenting web content
-- `web/styles.css`: UI styling for the embedded viewer
-- `web/support.html`: lightweight support page used by the manifest
-- `scripts/serve.mjs`: no-dependency static server
-- `scripts/new-dev-cert.ps1`: generates and trusts a localhost development certificate
-- `scripts/start-local.ps1`: starts the local server with the default development certificate when present
-- `scripts/dev-doctor.ps1`: checks the manifest, Node runtime, and local certificate setup
-- `scripts/validate-manifest.ps1`: pragmatic manifest sanity checks
-- `docs/local-dev.md`: local HTTPS, sideloading, and Windows desktop troubleshooting notes
-- `docs/research.md`: dated notes on retirement, platform constraints, and architecture choices
+| Path | Purpose |
+|---|---|
+| `manifest.prod.xml` | Production manifest pointing at GitHub Pages |
+| `manifest.localhost.xml` | Local development manifest (HTTPS localhost:3000) |
+| `manifest.hosted.xml` | Hosted manifest template for custom deployments |
+| `web/content.html` | Add-in surface loaded inside the PowerPoint shape |
+| `web/app.js` | All app logic — URL processing, state, Office API, UI |
+| `web/styles.css` | UI styling |
+| `web/support.html` | Support page linked from the manifest |
+| `web/privacy.html` | Privacy policy |
+| `web/terms.html` | Terms of use |
+| `scripts/serve.mjs` | Local HTTPS dev server (no dependencies) |
+| `scripts/new-dev-cert.ps1` | Generates and trusts a localhost certificate |
+| `scripts/start-local.ps1` | Starts the local server |
+| `scripts/dev-doctor.ps1` | Checks manifest, Node, and certificate setup |
+| `docs/local-dev.md` | Local HTTPS, sideloading, and Windows troubleshooting |
+| `docs/research.md` | Architecture decisions and platform constraint notes |
 
-## Local Development
-
-1. Generate a trusted localhost certificate.
-2. Run the local doctor script.
-3. Start the local server over HTTPS.
-4. Sideload `manifest.localhost.xml` into PowerPoint.
-
-Commands:
+## Local development
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/new-dev-cert.ps1
 powershell -ExecutionPolicy Bypass -File scripts/dev-doctor.ps1
 powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1
-powershell -ExecutionPolicy Bypass -File scripts/validate-manifest.ps1
 ```
 
-The server supports both HTTP and HTTPS and now auto-discovers the default development certificate in `certs/`:
+Then sideload `manifest.localhost.xml` into PowerPoint Desktop via **Insert → Get Add-ins → Manage My Add-ins → Upload My Add-in**.
 
-- For real PowerPoint testing in Office, use HTTPS.
-- If no certificate is configured, the server falls back to HTTP so the UI can still be previewed in a normal browser.
-
-Optional environment variables for HTTPS:
-
-```powershell
-$env:SSL_KEY_FILE="C:\path\to\localhost.key"
-$env:SSL_CERT_FILE="C:\path\to\localhost.crt"
-node scripts/serve.mjs
-```
-
-Or with a PFX bundle:
-
-```powershell
-$env:SSL_PFX_FILE="C:\path\to\localhost.pfx"
-$env:SSL_PFX_PASSPHRASE="your-passphrase"
-node scripts/serve.mjs
-```
-
-If PowerPoint desktop shows `We can't open this add-in from localhost`, Microsoft’s current guidance is to add the Desktop App Web Viewer loopback exemption from an elevated prompt:
+If PowerPoint shows `We can't open this add-in from localhost`, run this once from an elevated prompt:
 
 ```powershell
 CheckNetIsolation LoopbackExempt -a -n="microsoft.win32webviewhost_cw5n1h2txyewy"
 ```
 
-The practical local workflow is documented in [docs/local-dev.md](/C:/Users/prabh/source/repos/Webviewer2/docs/local-dev.md).
+Optional HTTPS environment variables:
 
-## What This MVP Handles
+```powershell
+$env:SSL_KEY_FILE  = "C:\path\to\localhost.key"
+$env:SSL_CERT_FILE = "C:\path\to\localhost.crt"
+node scripts/serve.mjs
+```
 
-- Accepts a plain URL or an iframe snippet and extracts the first usable URL.
-- Normalizes hostnames to HTTPS when the protocol is missing.
-- Rewrites several common share URLs into embed-friendly URLs when the provider has a predictable embed format.
-- Persists the last loaded URL in document settings so the slide remembers it.
-- Detects edit vs slide-show view where the host exposes that information.
-- Gives a clearer explanation when a page is probably blocked by `frame-ancestors` or `X-Frame-Options`.
+Full details in [docs/local-dev.md](docs/local-dev.md).
 
-## Important Constraints
+## Constraints
 
-**Embedding**: No PowerPoint add-in can force an arbitrary website to allow embedding. If a site sends restrictive CSP or `X-Frame-Options` headers, the viewer must respect that. The right long-term product answer is better diagnostics, better vendor-specific embed guidance, and optional provider integrations, not brittle hacks.
+**Embedding** — no add-in can force a site to allow iframe embedding. If a site sends restrictive `X-Frame-Options` or `frame-ancestors` CSP headers, the viewer shows a block overlay with an Open-in-Browser and QR fallback.
 
-**Runtime requirement**: This add-in uses ES modules, CSS custom properties, and other modern web APIs. It requires the Chromium-based **WebView2 runtime** that ships with Office 365 / Office 2021 and newer. It will not run in the legacy IE-based WebView used by some older Office 2016/2019 installations.
+**Runtime** — requires the Chromium-based WebView2 runtime that ships with Microsoft 365 / Office 2021 and newer. Not compatible with the legacy IE-based WebView in some Office 2016/2019 installations.
 
-**Mobile Office**: Content add-ins (`xsi:type="ContentApp"`) are a desktop-only feature. They are not supported in Office for iOS or Android.
+**Mobile Office** — content add-ins (`xsi:type="ContentApp"`) are a desktop-only feature. Not supported on Office for iOS or Android.
 
-## AppSource Readiness Checklist
-
-Before submitting to Microsoft AppSource the manifest needs:
-
-- `<PrivacyStatementUrl>` — required by Microsoft
-- `<TermsOfUseUrl>` — required by Microsoft
-- `<ProviderName>` updated to a proper individual or company name
-- Longer `<Description>` text (AppSource requires 150–4000 characters)
-
-## Suggested Next Milestones
-
-1. Add provider presets and templates for common live-slide use cases such as timers, Power BI, maps, and internal dashboards.
-2. Add a companion task pane for bookmarks, slide presets, and failure diagnostics.
-3. Add telemetry and structured diagnostics for blocked embeds and load failures.
-4. Complete AppSource submission metadata (privacy policy, terms of use, full description).
-
-## Research Notes
-
-The architecture choices in this repo are summarized in [docs/research.md](/C:/Users/prabh/source/repos/Webviewer2/docs/research.md).
+**Slideshow scroll** — when the cursor is over the add-in during a slideshow, mouse-wheel events are captured by PowerPoint at the OS level for slide navigation and never reach the iframe. Use Auto-scroll for hands-free panning during presentations.

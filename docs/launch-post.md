@@ -21,7 +21,7 @@ Paste a URL into the add-in bar and it appears as a live embedded frame directly
 - Paste up to 4 URLs separated by commas for a side-by-side split-screen view
 - Auto-refresh on a 30 s / 1 m / 5 m timer so dashboards stay current during a presentation
 - Draw mode — annotate over the live content with a stylus or mouse
-- Mobile view — scales the embed to 390 px width so you can preview mobile layouts
+- Mobile view — resizes the slide shape to phone width so the page renders its real responsive mobile layout
 - QR code button — instantly generate a scannable code for the current URL
 - Zoom controls
 - Dark toolbar option
@@ -70,7 +70,7 @@ Webviewer 2.0 is the free, open-source replacement — with features the origina
 - Split-screen: separate up to 4 URLs with commas
 - Auto-refresh: keep dashboards live during a presentation (30 s / 1 m / 5 m)
 - Draw over the embedded content with a stylus or mouse
-- Mobile view: preview any site at 390 px phone width
+- Mobile view: resizes the slide shape to phone width so the page renders its real responsive layout
 - QR code: generate a scannable link for the current URL in one click
 - Zoom, dark toolbar, Presentation Lock
 
