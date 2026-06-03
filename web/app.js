@@ -8,7 +8,8 @@ const STORAGE_KEYS = {
   desktopFit: "webviewer2.desktopFit",
   safeMode: "webviewer2.safeMode",
   invertTheme: "webviewer2.invertTheme",
-  mobileView: "webviewer2.mobileView"
+  mobileView: "webviewer2.mobileView",
+  shapeSize:  "webviewer2.shapeSize"   // { w, h } in pt — shape dims before mobile resize
 };
 
 const LOAD_TIMEOUT_MS = 9000;
@@ -46,6 +47,9 @@ const state = {
   drawMode: false,
   invertTheme: false,
   mobileView: false,
+  _mobileShapeResized: false, // true when Mobile View used the PowerPoint API (not CSS fallback)
+  originalShapeW: null,       // shape width  in pt before mobile resize
+  originalShapeH: null,       // shape height in pt before mobile resize
   autoScrollSpeed: 0,       // 0=off 1=slow 2=medium 3=fast (not persisted)
   autoScrollPos: 0,
   autoScrollRafId: null,
@@ -198,6 +202,7 @@ function handleOfficeReady() {
         syncChromeState();
         syncActiveView();
         registerActiveViewChanged();
+        initShapeTracking();
       }, delay);
     });
   } else {
@@ -205,6 +210,7 @@ function handleOfficeReady() {
     syncChromeState();
     syncActiveView();
     registerActiveViewChanged();
+    initShapeTracking();
   }
 }
 
@@ -1801,7 +1807,114 @@ function applyFrameTransform() {
 
 /* ── Mobile View ─────────────────────────────────────────────────── */
 
-function toggleMobileView() {
+// Shape tag used to identify our add-in shape in the PowerPoint object model.
+const SHAPE_TAG_KEY   = "WV2_ID";
+const SHAPE_TAG_VALUE = "webviewer2";
+
+// ── Startup: discover shape, cache original dimensions ────────────
+
+// Called once from handleOfficeReady.  Restores any previously saved shape
+// dimensions from localStorage, then proactively tags our PowerPoint shape
+// so the first Mobile View toggle is instant.
+// Must NOT overwrite saved dimensions when mobileView is already ON —
+// the shape will be at the reduced mobile width in that case.
+function initShapeTracking() {
+  // Restore saved dimensions from a previous session first.
+  if (!state.originalShapeW) {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.shapeSize);
+      if (stored) {
+        const p = JSON.parse(stored);
+        if (p && p.w > 0) { state.originalShapeW = p.w; state.originalShapeH = p.h; }
+      }
+    } catch (_) {}
+  }
+
+  // Proactively find and tag our shape in the background.
+  // Only record the live shape dimensions when mobileView is OFF —
+  // otherwise the shape is already at mobile width, not the original.
+  if (typeof PowerPoint !== "undefined") {
+    PowerPoint.run(async context => {
+      const shape = await findOrTagOurShape(context);
+      if (!shape) return;
+      if (!state.mobileView && !state.originalShapeW) {
+        state.originalShapeW = shape.width;
+        state.originalShapeH = shape.height;
+        try {
+          window.localStorage.setItem(STORAGE_KEYS.shapeSize,
+            JSON.stringify({ w: shape.width, h: shape.height }));
+        } catch (_) {}
+      }
+    }).catch(e => console.warn("[WV2] initShapeTracking:", e));
+  }
+}
+
+// Searches every slide for the shape that hosts this add-in.
+// Preference order:
+//   1. Shape already tagged with SHAPE_TAG_KEY  (fast direct lookup)
+//   2. Shape whose width matches our CSS viewport width ±8 pt
+//   3. Shape whose name contains "webviewer" (case-insensitive)
+// Once identified the shape is tagged so subsequent calls hit case 1.
+async function findOrTagOurShape(context) {
+  const slides = context.presentation.slides;
+  slides.load("items");
+  await context.sync();
+
+  for (const slide of slides.items) {
+    const shapes = slide.shapes;
+    shapes.load("items");
+    await context.sync();
+    if (!shapes.items.length) continue;
+
+    shapes.items.forEach(s => s.load("id,name,width,height"));
+    await context.sync();
+
+    // Batch-load our tag for every shape in one round-trip.
+    const entries = shapes.items.map(s => {
+      const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
+      t.load("isNullObject,value");
+      return { shape: s, tag: t };
+    });
+    await context.sync();
+
+    // 1. Already tagged → ours.
+    for (const { shape, tag } of entries) {
+      if (!tag.isNullObject && tag.value === SHAPE_TAG_VALUE) {
+        return shape;
+      }
+    }
+
+    // 2. Width matches our CSS viewport (px → pt at standard 96 dpi).
+    //    The shape that hosts our WebView2 will have a width equal to
+    //    document.documentElement.clientWidth × (72/96) ±rounding.
+    const viewportPx = document.documentElement.clientWidth || 720;
+    const expectedPt = viewportPx * (72 / 96);
+    for (const { shape, tag } of entries) {
+      if (tag.isNullObject && Math.abs(shape.width - expectedPt) <= 8) {
+        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
+        await context.sync();
+        return shape;
+      }
+    }
+
+    // 3. Name contains "webviewer" (PowerPoint names the shape after
+    //    the add-in's DisplayName from the manifest).
+    for (const { shape, tag } of entries) {
+      if (tag.isNullObject && shape.name &&
+          shape.name.toLowerCase().includes("webviewer")) {
+        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
+        await context.sync();
+        return shape;
+      }
+    }
+  }
+
+  return null;
+}
+
+// ── Toggle ────────────────────────────────────────────────────────
+
+async function toggleMobileView() {
   state.mobileView = !state.mobileView;
 
   if (state.mobileView) {
@@ -1817,19 +1930,30 @@ function toggleMobileView() {
     const scrollSpan = ui.autoScrollBtn.querySelector("span");
     if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
     resetAutoScrollIframes();
-    // Reset frame-level transforms set by zoom
+    // Clear any zoom transforms on the frame
     ui.frame.style.transform = "";
-    ui.frame.style.width = "100%";
-    ui.frame.style.height = "100%";
-    applyMobileView();
+    ui.frame.style.width     = "100%";
+    ui.frame.style.height    = "100%";
+
+    // Attempt PowerPoint shape resize; fall back to CSS iframe trick.
+    state._mobileShapeResized = await resizeShapeToMobile();
+    if (!state._mobileShapeResized) {
+      applyMobileViewFallback();
+    }
   } else {
-    // Restore normal iframe sizing
+    // Restore iframes (needed when we were in CSS-fallback mode).
     getFrameIframes().forEach(f => {
-      f.style.width = "100%";
-      f.style.height = "100%";
-      f.style.transform = "";
+      f.style.width           = "100%";
+      f.style.height          = "100%";
+      f.style.transform       = "";
       f.style.transformOrigin = "";
+      f.style.justifySelf     = "";
     });
+
+    // Always attempt shape restore — handles restarts where
+    // _mobileShapeResized was reset to false but the shape is still narrow.
+    await restoreShapeSize();
+    state._mobileShapeResized = false;
     applyFrameTransform();
   }
 
@@ -1838,28 +1962,104 @@ function toggleMobileView() {
   persistState();
 }
 
-function applyMobileView() {
+// ── PowerPoint shape resize helpers ──────────────────────────────
+
+// Resize the shape that hosts this add-in to a 390 CSS-px-equivalent
+// width.  The pt value is derived from live measurements so it is
+// accurate regardless of screen DPI.
+// Returns true if the shape was successfully resized.
+async function resizeShapeToMobile() {
+  if (typeof PowerPoint === "undefined") return false;
+  try {
+    let success = false;
+    await PowerPoint.run(async context => {
+      const shape = await findOrTagOurShape(context);
+      if (!shape) return;
+
+      // Derive pt-per-px using the shape's current width and our actual
+      // container pixel width — accounts for any DPI/zoom scaling.
+      const containerPx = document.documentElement.clientWidth || 720;
+      const ptPerPx     = shape.width / containerPx;
+
+      // Always snapshot current (full-size) dimensions before resizing so
+      // a subsequent restore is accurate even if the shape was manually
+      // resized since the last toggle.
+      state.originalShapeW = shape.width;
+      state.originalShapeH = shape.height;
+      try {
+        window.localStorage.setItem(STORAGE_KEYS.shapeSize,
+          JSON.stringify({ w: shape.width, h: shape.height }));
+      } catch (_) {}
+
+      shape.width = Math.round(390 * ptPerPx * 10) / 10;
+      await context.sync();
+      success = true;
+    });
+    return success;
+  } catch (e) {
+    console.warn("[WV2] resizeShapeToMobile:", e);
+    return false;
+  }
+}
+
+// Restore the shape to its pre-mobile dimensions.
+// Safe no-op if no saved dimensions are available.
+async function restoreShapeSize() {
+  if (typeof PowerPoint === "undefined") return;
+
+  let w = state.originalShapeW;
+  if (!w) {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEYS.shapeSize);
+      if (stored) { const p = JSON.parse(stored); w = p.w; }
+    } catch (_) {}
+  }
+  if (!w) return; // no saved size — nothing to restore
+
+  try {
+    await PowerPoint.run(async context => {
+      const shape = await findOrTagOurShape(context);
+      if (!shape) return;
+      shape.width = w;
+      await context.sync();
+    });
+  } catch (e) {
+    console.warn("[WV2] restoreShapeSize:", e);
+  }
+}
+
+// ── CSS fallback (when PowerPoint API is unavailable) ─────────────
+
+// Sets each iframe to a real 390 CSS-px width (capped at the pane width)
+// with NO scale transform, centred in its grid cell.  The embedded page
+// sees a genuine narrow viewport and its responsive CSS fires naturally.
+function applyMobileViewFallback() {
   if (!state.mobileView) return;
 
-  const MOBILE_WIDTH = 390; // iPhone-class viewport width in CSS px
-  const iframes = getFrameIframes();
-  const paneCount = iframes.length;
-  const containerW = ui.frame.clientWidth || document.body.clientWidth;
-  const containerH = ui.frame.clientHeight || document.body.clientHeight;
-
-  // In a 2-column layout (2–4 panes), each cell is half the container width/height.
-  const hasRows = paneCount >= 3;
-  const hasCols = paneCount >= 2;
-  const paneW = hasCols ? containerW / 2 : containerW;
-  const paneH = hasRows ? containerH / 2 : containerH;
-  const scale = paneW / MOBILE_WIDTH;
+  const MOBILE_WIDTH = 390;
+  const iframes      = getFrameIframes();
+  const paneCount    = iframes.length;
+  const containerW   = ui.frame.clientWidth || document.body.clientWidth;
+  const hasCols      = paneCount >= 2;
+  const paneW        = hasCols ? containerW / 2 : containerW;
+  const w            = Math.min(MOBILE_WIDTH, paneW);
 
   iframes.forEach(iframe => {
-    iframe.style.width = `${MOBILE_WIDTH}px`;
-    iframe.style.height = `${paneH / scale}px`;
-    iframe.style.transformOrigin = "top left";
-    iframe.style.transform = `scale(${scale})`;
+    iframe.style.width           = `${w}px`;
+    iframe.style.height          = "100%";
+    iframe.style.transform       = "";
+    iframe.style.transformOrigin = "";
+    iframe.style.justifySelf     = "center";
   });
+}
+
+// Called by the resize-event handler and loadIntoFrame.
+// Routes to the CSS fallback when the PowerPoint shape was not (or
+// cannot be) resized.  When the shape was resized, iframes already fill
+// it at 100% — no CSS intervention needed.
+function applyMobileView() {
+  if (!state.mobileView) return;
+  if (!state._mobileShapeResized) applyMobileViewFallback();
 }
 
 /* ── Auto-Scroll ─────────────────────────────────────────────────── */
