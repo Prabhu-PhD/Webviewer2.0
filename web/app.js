@@ -58,8 +58,9 @@ const state = {
   loadTimer: null,
   officeReady: false,
   lastView: null,              // "edit" | "read" — so we react only to real transitions
-  _lastSavedChrome: undefined, // last chromeVisible written to document settings
-  _lastSavedUrl: undefined     // last currentUrl written to document settings
+  _lastSavedChrome: undefined,      // last chromeVisible written to document settings
+  _lastSavedUrl: undefined,         // last currentUrl written to document settings
+  _lastSavedMobileView: undefined   // last mobileView written to document settings
 };
 
 let _autoScrollLast = null; // rAF timestamp tracking
@@ -224,7 +225,6 @@ function hydrateFromBrowserStorage() {
     const desktopFitStr = window.localStorage.getItem(STORAGE_KEYS.desktopFit);
     const safeModeStr = window.localStorage.getItem(STORAGE_KEYS.safeMode);
     const invertStr = window.localStorage.getItem(STORAGE_KEYS.invertTheme);
-    const mobileViewStr = window.localStorage.getItem(STORAGE_KEYS.mobileView);
 
     if (isDarkStr) state.isDark = isDarkStr === "true";
     if (zoomStr) state.zoom = parseFloat(zoomStr) || 1.0;
@@ -232,7 +232,7 @@ function hydrateFromBrowserStorage() {
     if (desktopFitStr) state.desktopFit = desktopFitStr === "true";
     if (safeModeStr) state.safeMode = safeModeStr === "true";
     if (invertStr) state.invertTheme = invertStr === "true";
-    if (mobileViewStr) state.mobileView = mobileViewStr === "true";
+    // mobileView is per-shape and lives exclusively in document settings (not localStorage)
 
     if (recentUrlsStr) {
       try {
@@ -287,6 +287,14 @@ function hydrateFromDocumentSettings() {
       state.currentUrl = savedUrl;
       ui.urlInput.value = savedUrl;
       safelyHydrateUrl(savedUrl);
+    }
+
+    // mobileView is per-shape — restore from document settings, not localStorage.
+    const savedMobileView = settings.get(STORAGE_KEYS.mobileView);
+    if (typeof savedMobileView === "boolean" && savedMobileView !== state.mobileView) {
+      state.mobileView = savedMobileView;
+      // Sync button state; full applyMobileView() runs later via loadIntoFrame.
+      syncAdvancedTools();
     }
   });
 }
@@ -558,10 +566,8 @@ function syncActiveView(options = {}) {
 
       clearCanvas();
       hideBlockOverlay();
-
-      if (!options.isInitial) {
-        forceRefresh();
-      }
+      // Intentionally no forceRefresh() — the loaded webpage must persist
+      // unchanged across edit ↔ slideshow transitions.
     } else {
       document.body.classList.remove("is-presentation");
 
@@ -571,10 +577,7 @@ function syncActiveView(options = {}) {
         state._savedEditChrome = null;
       }
       syncChromeState();
-
-      if (!options.isInitial) {
-        forceRefresh();
-      }
+      // Intentionally no forceRefresh() — same as above.
     }
   });
 }
@@ -637,8 +640,8 @@ function persistToBrowserStorage() {
     window.localStorage.setItem(STORAGE_KEYS.desktopFit, String(state.desktopFit));
     window.localStorage.setItem(STORAGE_KEYS.safeMode, String(state.safeMode));
     window.localStorage.setItem(STORAGE_KEYS.invertTheme, String(state.invertTheme));
-    window.localStorage.setItem(STORAGE_KEYS.mobileView, String(state.mobileView));
-    // currentUrl is deliberately excluded — it is per-shape and lives only in
+    // mobileView and currentUrl are deliberately excluded — both are per-shape
+    // and live exclusively in Office document settings. — it is per-shape and lives only in
     // Office document settings.  Writing it here would pollute the shared
     // localStorage and cause new inserts to load a stale URL from another shape.
   } catch (error) {
@@ -648,24 +651,31 @@ function persistToBrowserStorage() {
 
 function persistToDocumentSettings() {
   const settings = Office?.context?.document?.settings;
+  if (!settings) return;
 
-  if (!settings) {
-    return;
+  // Track dirty state per field so unrelated toggles (zoom, theme, etc.) never
+  // mark the .pptx as modified. Only write + save when something actually changed.
+  let dirty = false;
+
+  if (state.chromeVisible !== state._lastSavedChrome) {
+    settings.set(STORAGE_KEYS.chromeVisible, state.chromeVisible);
+    state._lastSavedChrome = state.chromeVisible;
+    dirty = true;
   }
 
-  // Only write + save when a value that actually lives in the document has
-  // changed. Otherwise every zoom/theme/refresh toggle would re-save and mark
-  // the .pptx as modified, nagging the user to save on close.
-  if (state.chromeVisible === state._lastSavedChrome && state.currentUrl === state._lastSavedUrl) {
-    return;
+  if (state.currentUrl !== state._lastSavedUrl) {
+    if (state.currentUrl) settings.set(STORAGE_KEYS.currentUrl, state.currentUrl);
+    state._lastSavedUrl = state.currentUrl;
+    dirty = true;
   }
-  state._lastSavedChrome = state.chromeVisible;
-  state._lastSavedUrl = state.currentUrl;
 
-  settings.set(STORAGE_KEYS.chromeVisible, state.chromeVisible);
-  if (state.currentUrl) {
-    settings.set(STORAGE_KEYS.currentUrl, state.currentUrl);
+  if (state.mobileView !== state._lastSavedMobileView) {
+    settings.set(STORAGE_KEYS.mobileView, state.mobileView);
+    state._lastSavedMobileView = state.mobileView;
+    dirty = true;
   }
+
+  if (!dirty) return;
 
   settings.saveAsync((result) => {
     if (result.status !== Office.AsyncResultStatus.Succeeded) {
@@ -1834,7 +1844,9 @@ function initShapeTracking() {
   // otherwise the shape is already at mobile width, not the original.
   if (typeof PowerPoint !== "undefined") {
     PowerPoint.run(async context => {
-      const shape = await findOrTagOurShape(context);
+      // Read-only lookup — must not write to the document at startup or the
+      // .pptx will be marked as modified every time the add-in loads.
+      const shape = await findOurShape(context);
       if (!shape) return;
       if (!state.mobileView && !state.originalShapeW) {
         state.originalShapeW = shape.width;
@@ -1848,13 +1860,13 @@ function initShapeTracking() {
   }
 }
 
-// Searches every slide for the shape that hosts this add-in.
+// Read-only shape lookup — used at startup (initShapeTracking) so the
+// document is never marked dirty just by loading the add-in.
 // Preference order:
 //   1. Shape already tagged with SHAPE_TAG_KEY  (fast direct lookup)
 //   2. Shape whose width matches our CSS viewport width ±8 pt
 //   3. Shape whose name contains "webviewer" (case-insensitive)
-// Once identified the shape is tagged so subsequent calls hit case 1.
-async function findOrTagOurShape(context) {
+async function findOurShape(context) {
   const slides = context.presentation.slides;
   slides.load("items");
   await context.sync();
@@ -1868,7 +1880,6 @@ async function findOrTagOurShape(context) {
     shapes.items.forEach(s => s.load("id,name,width,height"));
     await context.sync();
 
-    // Batch-load our tag for every shape in one round-trip.
     const entries = shapes.items.map(s => {
       const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
       t.load("isNullObject,value");
@@ -1884,8 +1895,58 @@ async function findOrTagOurShape(context) {
     }
 
     // 2. Width matches our CSS viewport (px → pt at standard 96 dpi).
-    //    The shape that hosts our WebView2 will have a width equal to
-    //    document.documentElement.clientWidth × (72/96) ±rounding.
+    const viewportPx = document.documentElement.clientWidth || 720;
+    const expectedPt = viewportPx * (72 / 96);
+    for (const { shape, tag } of entries) {
+      if (tag.isNullObject && Math.abs(shape.width - expectedPt) <= 8) {
+        return shape; // read-only: found but NOT tagged
+      }
+    }
+
+    // 3. Name contains "webviewer".
+    for (const { shape, tag } of entries) {
+      if (tag.isNullObject && shape.name &&
+          shape.name.toLowerCase().includes("webviewer")) {
+        return shape; // read-only: found but NOT tagged
+      }
+    }
+  }
+
+  return null;
+}
+
+// Write version — used only by resizeShapeToMobile / restoreShapeSize where
+// the document is already being modified (shape resize), so tagging it here
+// causes no additional dirty-state cost.
+async function findOrTagOurShape(context) {
+  const slides = context.presentation.slides;
+  slides.load("items");
+  await context.sync();
+
+  for (const slide of slides.items) {
+    const shapes = slide.shapes;
+    shapes.load("items");
+    await context.sync();
+    if (!shapes.items.length) continue;
+
+    shapes.items.forEach(s => s.load("id,name,width,height"));
+    await context.sync();
+
+    const entries = shapes.items.map(s => {
+      const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
+      t.load("isNullObject,value");
+      return { shape: s, tag: t };
+    });
+    await context.sync();
+
+    // 1. Already tagged → ours.
+    for (const { shape, tag } of entries) {
+      if (!tag.isNullObject && tag.value === SHAPE_TAG_VALUE) {
+        return shape;
+      }
+    }
+
+    // 2. Width match — tag it now (document is already dirty from resize).
     const viewportPx = document.documentElement.clientWidth || 720;
     const expectedPt = viewportPx * (72 / 96);
     for (const { shape, tag } of entries) {
@@ -1896,8 +1957,7 @@ async function findOrTagOurShape(context) {
       }
     }
 
-    // 3. Name contains "webviewer" (PowerPoint names the shape after
-    //    the add-in's DisplayName from the manifest).
+    // 3. Name match — tag it.
     for (const { shape, tag } of entries) {
       if (tag.isNullObject && shape.name &&
           shape.name.toLowerCase().includes("webviewer")) {
