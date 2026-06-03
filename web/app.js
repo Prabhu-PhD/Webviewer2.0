@@ -280,6 +280,14 @@ function hydrateFromDocumentSettings() {
       syncChromeState();
     }
 
+    // Restore mobileView BEFORE loading the URL so loadIntoFrame sees the
+    // correct state and calls applyMobileView() on the freshly created iframes.
+    const savedMobileView = settings.get(STORAGE_KEYS.mobileView);
+    if (typeof savedMobileView === "boolean") {
+      state.mobileView = savedMobileView;
+      syncAdvancedTools();
+    }
+
     const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
     // currentUrl is exclusively owned by document settings (per-shape).
     // localStorage no longer holds it, so no double-load guard is needed.
@@ -287,14 +295,6 @@ function hydrateFromDocumentSettings() {
       state.currentUrl = savedUrl;
       ui.urlInput.value = savedUrl;
       safelyHydrateUrl(savedUrl);
-    }
-
-    // mobileView is per-shape — restore from document settings, not localStorage.
-    const savedMobileView = settings.get(STORAGE_KEYS.mobileView);
-    if (typeof savedMobileView === "boolean" && savedMobileView !== state.mobileView) {
-      state.mobileView = savedMobileView;
-      // Sync button state; full applyMobileView() runs later via loadIntoFrame.
-      syncAdvancedTools();
     }
   });
 }
