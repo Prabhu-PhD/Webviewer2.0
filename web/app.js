@@ -217,7 +217,6 @@ function handleOfficeReady() {
 function hydrateFromBrowserStorage() {
   try {
     const chromeVisible = window.localStorage.getItem(STORAGE_KEYS.chromeVisible);
-    const currentUrl = window.localStorage.getItem(STORAGE_KEYS.currentUrl);
     const recentUrlsStr = window.localStorage.getItem(STORAGE_KEYS.recentUrls);
     const isDarkStr = window.localStorage.getItem(STORAGE_KEYS.isDark);
     const zoomStr = window.localStorage.getItem(STORAGE_KEYS.zoom);
@@ -255,10 +254,11 @@ function hydrateFromBrowserStorage() {
     syncAdvancedTools();
     applyRefreshInterval();
 
-    if (currentUrl) {
-      ui.urlInput.value = currentUrl;
-      safelyHydrateUrl(currentUrl);
-    }
+    // currentUrl is intentionally NOT restored from localStorage here.
+    // localStorage is shared across every add-in instance on every slide, so
+    // restoring it here would cause a new insert to load a stale URL from a
+    // completely different shape.  The URL lives exclusively in Office document
+    // settings (per-shape) and is restored in hydrateFromDocumentSettings().
   } catch (error) {
     console.warn("Local storage is unavailable.", error);
   }
@@ -281,10 +281,9 @@ function hydrateFromDocumentSettings() {
     }
 
     const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
-    // Browser storage already hydrated synchronously at startup. Only re-load
-    // if the document-level URL differs, otherwise we'd load the same frame
-    // twice on every launch.
-    if (typeof savedUrl === "string" && savedUrl.trim() && savedUrl !== state.currentUrl) {
+    // currentUrl is exclusively owned by document settings (per-shape).
+    // localStorage no longer holds it, so no double-load guard is needed.
+    if (typeof savedUrl === "string" && savedUrl.trim()) {
       state.currentUrl = savedUrl;
       ui.urlInput.value = savedUrl;
       safelyHydrateUrl(savedUrl);
@@ -639,9 +638,9 @@ function persistToBrowserStorage() {
     window.localStorage.setItem(STORAGE_KEYS.safeMode, String(state.safeMode));
     window.localStorage.setItem(STORAGE_KEYS.invertTheme, String(state.invertTheme));
     window.localStorage.setItem(STORAGE_KEYS.mobileView, String(state.mobileView));
-    if (state.currentUrl) {
-      window.localStorage.setItem(STORAGE_KEYS.currentUrl, state.currentUrl);
-    }
+    // currentUrl is deliberately excluded — it is per-shape and lives only in
+    // Office document settings.  Writing it here would pollute the shared
+    // localStorage and cause new inserts to load a stale URL from another shape.
   } catch (error) {
     console.warn("Local persistence failed.", error);
   }
