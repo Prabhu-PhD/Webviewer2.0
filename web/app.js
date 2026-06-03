@@ -58,9 +58,13 @@ const state = {
   loadTimer: null,
   officeReady: false,
   lastView: null,              // "edit" | "read" — so we react only to real transitions
-  _lastSavedChrome: undefined,      // last chromeVisible written to document settings
-  _lastSavedUrl: undefined,         // last currentUrl written to document settings
-  _lastSavedMobileView: undefined   // last mobileView written to document settings
+  _lastSavedChrome: undefined,          // last chromeVisible written to document settings
+  _lastSavedUrl: undefined,             // last currentUrl written to document settings
+  _lastSavedMobileView: undefined,      // last mobileView written to document settings
+  _lastSavedZoom: undefined,            // last zoom written to document settings
+  _lastSavedDesktopFit: undefined,      // last desktopFit written to document settings
+  _lastSavedSafeMode: undefined,        // last safeMode written to document settings
+  _lastSavedRefreshInterval: undefined  // last refreshInterval written to document settings
 };
 
 let _autoScrollLast = null; // rAF timestamp tracking
@@ -220,19 +224,12 @@ function hydrateFromBrowserStorage() {
     const chromeVisible = window.localStorage.getItem(STORAGE_KEYS.chromeVisible);
     const recentUrlsStr = window.localStorage.getItem(STORAGE_KEYS.recentUrls);
     const isDarkStr = window.localStorage.getItem(STORAGE_KEYS.isDark);
-    const zoomStr = window.localStorage.getItem(STORAGE_KEYS.zoom);
-    const refreshStr = window.localStorage.getItem(STORAGE_KEYS.refreshInterval);
-    const desktopFitStr = window.localStorage.getItem(STORAGE_KEYS.desktopFit);
-    const safeModeStr = window.localStorage.getItem(STORAGE_KEYS.safeMode);
     const invertStr = window.localStorage.getItem(STORAGE_KEYS.invertTheme);
 
     if (isDarkStr) state.isDark = isDarkStr === "true";
-    if (zoomStr) state.zoom = parseFloat(zoomStr) || 1.0;
-    if (refreshStr) state.refreshInterval = parseInt(refreshStr, 10) || 0;
-    if (desktopFitStr) state.desktopFit = desktopFitStr === "true";
-    if (safeModeStr) state.safeMode = safeModeStr === "true";
     if (invertStr) state.invertTheme = invertStr === "true";
-    // mobileView is per-shape and lives exclusively in document settings (not localStorage)
+    // zoom, desktopFit, safeMode, refreshInterval, mobileView, and currentUrl are
+    // all per-shape and live exclusively in Office document settings (not localStorage).
 
     if (recentUrlsStr) {
       try {
@@ -247,12 +244,8 @@ function hydrateFromBrowserStorage() {
 
     syncChromeState();
     syncThemeState();
-    if (state.desktopFit) {
-      applyDesktopFitScale(document.body.clientWidth);
-    }
-    syncZoomState();
-    syncAdvancedTools();
-    applyRefreshInterval();
+    syncZoomState();      // zoom is 1.0 (default); sets button label correctly
+    syncAdvancedTools();  // reflects isDark / invertTheme button states
 
     // currentUrl is intentionally NOT restored from localStorage here.
     // localStorage is shared across every add-in instance on every slide, so
@@ -280,13 +273,29 @@ function hydrateFromDocumentSettings() {
       syncChromeState();
     }
 
-    // Restore mobileView BEFORE loading the URL so loadIntoFrame sees the
-    // correct state and calls applyMobileView() on the freshly created iframes.
+    // Restore all per-shape view state BEFORE loading the URL so that
+    // loadIntoFrame and applyMobileView see the correct state when they fire.
+
+    const savedZoom = settings.get(STORAGE_KEYS.zoom);
+    if (typeof savedZoom === "number" && savedZoom > 0) state.zoom = savedZoom;
+
+    const savedDesktopFit = settings.get(STORAGE_KEYS.desktopFit);
+    if (typeof savedDesktopFit === "boolean") state.desktopFit = savedDesktopFit;
+
+    const savedSafeMode = settings.get(STORAGE_KEYS.safeMode);
+    if (typeof savedSafeMode === "boolean") state.safeMode = savedSafeMode;
+
+    const savedRefreshInterval = settings.get(STORAGE_KEYS.refreshInterval);
+    if (typeof savedRefreshInterval === "number") state.refreshInterval = savedRefreshInterval;
+
     const savedMobileView = settings.get(STORAGE_KEYS.mobileView);
-    if (typeof savedMobileView === "boolean") {
-      state.mobileView = savedMobileView;
-      syncAdvancedTools();
-    }
+    if (typeof savedMobileView === "boolean") state.mobileView = savedMobileView;
+
+    // Apply all restored view state in one pass before the URL loads.
+    syncZoomState();
+    syncAdvancedTools();
+    applyRefreshInterval();
+    if (state.desktopFit) applyDesktopFitScale(document.body.clientWidth);
 
     const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
     // currentUrl is exclusively owned by document settings (per-shape).
@@ -531,7 +540,7 @@ function syncEmptyState() {
   ui.shell.classList.toggle("is-empty", !state.currentUrl);
 }
 
-function syncActiveView(options = {}) {
+function syncActiveView() {
   if (!Office?.context?.document?.getActiveViewAsync) {
     ui.shell.dataset.view = "edit";
     return;
@@ -633,17 +642,13 @@ function persistState() {
 
 function persistToBrowserStorage() {
   try {
+    // Only global user preferences live in localStorage.
+    // Per-shape state (zoom, desktopFit, safeMode, refreshInterval, mobileView,
+    // currentUrl) lives exclusively in Office document settings so each add-in
+    // instance is independent and new inserts always start clean.
     window.localStorage.setItem(STORAGE_KEYS.chromeVisible, String(state.chromeVisible));
     window.localStorage.setItem(STORAGE_KEYS.isDark, String(state.isDark));
-    window.localStorage.setItem(STORAGE_KEYS.zoom, String(state.zoom));
-    window.localStorage.setItem(STORAGE_KEYS.refreshInterval, String(state.refreshInterval));
-    window.localStorage.setItem(STORAGE_KEYS.desktopFit, String(state.desktopFit));
-    window.localStorage.setItem(STORAGE_KEYS.safeMode, String(state.safeMode));
     window.localStorage.setItem(STORAGE_KEYS.invertTheme, String(state.invertTheme));
-    // mobileView and currentUrl are deliberately excluded — both are per-shape
-    // and live exclusively in Office document settings. — it is per-shape and lives only in
-    // Office document settings.  Writing it here would pollute the shared
-    // localStorage and cause new inserts to load a stale URL from another shape.
   } catch (error) {
     console.warn("Local persistence failed.", error);
   }
@@ -672,6 +677,30 @@ function persistToDocumentSettings() {
   if (state.mobileView !== state._lastSavedMobileView) {
     settings.set(STORAGE_KEYS.mobileView, state.mobileView);
     state._lastSavedMobileView = state.mobileView;
+    dirty = true;
+  }
+
+  if (state.zoom !== state._lastSavedZoom) {
+    settings.set(STORAGE_KEYS.zoom, state.zoom);
+    state._lastSavedZoom = state.zoom;
+    dirty = true;
+  }
+
+  if (state.desktopFit !== state._lastSavedDesktopFit) {
+    settings.set(STORAGE_KEYS.desktopFit, state.desktopFit);
+    state._lastSavedDesktopFit = state.desktopFit;
+    dirty = true;
+  }
+
+  if (state.safeMode !== state._lastSavedSafeMode) {
+    settings.set(STORAGE_KEYS.safeMode, state.safeMode);
+    state._lastSavedSafeMode = state.safeMode;
+    dirty = true;
+  }
+
+  if (state.refreshInterval !== state._lastSavedRefreshInterval) {
+    settings.set(STORAGE_KEYS.refreshInterval, state.refreshInterval);
+    state._lastSavedRefreshInterval = state.refreshInterval;
     dirty = true;
   }
 
