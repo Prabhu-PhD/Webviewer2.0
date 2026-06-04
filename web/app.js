@@ -2025,7 +2025,9 @@ async function toggleMobileView() {
 
     // Attempt PowerPoint shape resize; fall back to CSS iframe trick.
     state._mobileShapeResized = await resizeShapeToMobile();
-    if (!state._mobileShapeResized) {
+    if (state._mobileShapeResized) {
+      showToast("Shape resized to phone width — click Mobile View again to restore.", "info");
+    } else {
       applyMobileViewFallback();
     }
   } else {
@@ -2157,18 +2159,20 @@ const AUTO_SCROLL_SPEEDS = [0, 20, 50, 120];
 const AUTO_SCROLL_LABELS = ["Auto-Scroll", "Slow Scroll", "Medium Scroll", "Fast Scroll"];
 
 function toggleAutoScroll() {
-  // Cycle: off → slow → medium → fast → off
-  state.autoScrollSpeed = (state.autoScrollSpeed + 1) % 4;
-
   const span = ui.autoScrollBtn.querySelector("span");
-  if (span) span.textContent = AUTO_SCROLL_LABELS[state.autoScrollSpeed];
 
-  if (state.autoScrollSpeed === 0) {
+  if (state.autoScrollSpeed > 0) {
+    // Currently on — one click always stops it immediately.
+    state.autoScrollSpeed = 0;
+    if (span) span.textContent = AUTO_SCROLL_LABELS[0];
     stopAutoScrollAnimation();
     state.autoScrollPos = 0;
     resetAutoScrollIframes();
   } else {
-    applyAutoScrollIframes(); // extend iframe heights before animating
+    // Currently off — start at slow (20 px/s).
+    state.autoScrollSpeed = 1;
+    if (span) span.textContent = AUTO_SCROLL_LABELS[1];
+    applyAutoScrollIframes();
     startAutoScrollAnimation();
   }
 
