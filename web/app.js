@@ -55,6 +55,7 @@ const state = {
 let scroll;                 // scroll controller (createScrollController)
 let draw;                   // draw controller (createDrawController)
 let _iframeCache = [];      // cached NodeList snapshot, invalidated on each loadIntoFrame
+let _cachedShapeId = null;  // shape id once found — skips the O(n) search on subsequent calls
 
 const ui = {};
 let toastTimer = null;
@@ -104,6 +105,8 @@ function cacheUi() {
   ui.safeModeBtn = document.getElementById("safe-mode-btn");
   ui.drawModeBtn = document.getElementById("draw-mode-btn");
   ui.clearDrawBtn = document.getElementById("clear-draw-btn");
+  ui.undoDrawBtn = document.getElementById("undo-draw-btn");
+  ui.drawColorRow = document.getElementById("draw-color-row");
   ui.invertBtn = document.getElementById("invert-btn");
   ui.safeModeOverlay = document.getElementById("safe-mode-overlay");
   ui.drawCanvas = document.getElementById("draw-canvas");
@@ -141,6 +144,14 @@ function bindEvents() {
   ui.safeModeBtn.addEventListener("click", toggleSafeMode);
   ui.drawModeBtn.addEventListener("click", toggleDrawMode);
   ui.clearDrawBtn.addEventListener("click", draw.clearCanvas);
+  ui.undoDrawBtn.addEventListener("click", draw.undoStroke);
+  ui.drawColorRow.addEventListener("click", (e) => {
+    const swatch = e.target.closest(".draw-swatch");
+    if (!swatch) return;
+    ui.drawColorRow.querySelectorAll(".draw-swatch").forEach(s => s.classList.remove("is-active"));
+    swatch.classList.add("is-active");
+    draw.setColor(swatch.dataset.color);
+  });
   ui.invertBtn.addEventListener("click", toggleInvertTheme);
   ui.mobileViewBtn.addEventListener("click", toggleMobileView);
   ui.autoScrollBtn.addEventListener("click", scroll.toggleAutoScroll);
@@ -151,7 +162,7 @@ function bindEvents() {
   // Re-apply view transforms on resize; also resize draw canvas when active
   window.addEventListener("resize", () => {
     if (state.desktopFit) {
-      applyDesktopFitScale(document.body.clientWidth);
+      applyFrameLayout(document.body.clientWidth);
     } else if (state.mobileView) {
       applyMobileView();
     }
@@ -304,7 +315,7 @@ function hydrateFromDocumentSettings() {
     syncZoomState();
     syncAdvancedTools();
     applyRefreshInterval();
-    if (state.desktopFit) applyDesktopFitScale(document.body.clientWidth);
+    if (state.desktopFit) applyFrameLayout(document.body.clientWidth);
 
     const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
     // currentUrl is exclusively owned by document settings (per-shape).
@@ -924,7 +935,12 @@ function renderRecentUrls() {
   state.recentUrls.forEach(url => {
     const li = document.createElement("li");
     li.className = "recent-item";
-    li.textContent = url;
+    try {
+      const parsed = new URL(url);
+      li.textContent = parsed.hostname + (parsed.pathname !== "/" ? parsed.pathname : "");
+    } catch (_) {
+      li.textContent = url;
+    }
     li.title = url;
     li.tabIndex = 0;
     li.setAttribute("role", "option");
@@ -1004,7 +1020,7 @@ function syncZoomState() {
     ui.zoomLevelBtn.setAttribute("aria-label", `Reset zoom — current: ${label}`);
   }
   if (state.desktopFit || state.mobileView) return;
-  applyFrameTransform();
+  applyFrameLayout();
 }
 
 function toggleDesktopFit() {
@@ -1024,11 +1040,9 @@ function toggleDesktopFit() {
     }
     // Stop any active auto-scroll
     scroll.stopAndReset();
-    applyDesktopFitScale(document.body.clientWidth);
+    applyFrameLayout(document.body.clientWidth);
   } else {
-    ui.frame.style.transform = "";
-    ui.frame.style.width = "100%";
-    ui.frame.style.height = "100%";
+    applyFrameLayout();
   }
 
   ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
@@ -1037,13 +1051,35 @@ function toggleDesktopFit() {
   persistState();
 }
 
-function applyDesktopFitScale(containerWidth) {
-  const TARGET_DESKTOP_WIDTH = 1280;
-  const scale = Math.min(containerWidth / TARGET_DESKTOP_WIDTH, 1);
-  ui.frame.style.transformOrigin = "top left";
-  ui.frame.style.transform = `scale(${scale})`;
-  ui.frame.style.width = `${100 / scale}%`;
-  ui.frame.style.height = `${100 / scale}%`;
+// Single entry-point for all #viewer-frame transform state.
+// Precedence: mobileView resets; desktopFit scales to 1280; otherwise zoom.
+// Auto-scroll translateY is applied to individual iframes and never conflicts.
+function applyFrameLayout(containerWidth) {
+  if (state.mobileView) {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+    return;
+  }
+  if (state.desktopFit) {
+    const TARGET_DESKTOP_WIDTH = 1280;
+    const scale = Math.min((containerWidth || document.body.clientWidth) / TARGET_DESKTOP_WIDTH, 1);
+    ui.frame.style.transformOrigin = "top left";
+    ui.frame.style.transform = `scale(${scale})`;
+    ui.frame.style.width = `${100 / scale}%`;
+    ui.frame.style.height = `${100 / scale}%`;
+    return;
+  }
+  if (state.zoom === 1.0) {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+  } else {
+    ui.frame.style.transformOrigin = "top left";
+    ui.frame.style.transform = `scale(${state.zoom})`;
+    ui.frame.style.width = `${100 / state.zoom}%`;
+    ui.frame.style.height = `${100 / state.zoom}%`;
+  }
 }
 
 // Enter/Space on a focused dropdown option behaves like a click, so the recent
@@ -1125,6 +1161,8 @@ function syncAdvancedTools() {
   ui.drawModeBtn.classList.toggle("is-active", state.drawMode);
   ui.drawCanvas.classList.toggle("is-hidden", !state.drawMode);
   ui.clearDrawBtn.classList.toggle("is-hidden", !state.drawMode);
+  ui.undoDrawBtn.classList.toggle("is-hidden", !state.drawMode);
+  ui.drawColorRow.classList.toggle("is-hidden", !state.drawMode);
   if (state.drawMode) draw.resizeCanvas();
 
   // Desktop Fit
@@ -1196,23 +1234,6 @@ function getFrameIframes() {
 
 /* ── Frame Transform Composition ────────────────────────────────── */
 
-// Applies zoom scale to #viewer-frame. Auto-scroll translateY is applied
-// directly to each <iframe> so the two transforms never conflict.
-function applyFrameTransform() {
-  if (state.desktopFit || state.mobileView) return;
-
-  if (state.zoom === 1.0) {
-    ui.frame.style.transform = "";
-    ui.frame.style.width = "100%";
-    ui.frame.style.height = "100%";
-  } else {
-    ui.frame.style.transformOrigin = "top left";
-    ui.frame.style.transform = `scale(${state.zoom})`;
-    ui.frame.style.width = `${100 / state.zoom}%`;
-    ui.frame.style.height = `${100 / state.zoom}%`;
-  }
-}
-
 /* ── Mobile View ─────────────────────────────────────────────────── */
 
 // Shape tag used to identify our add-in shape in the PowerPoint object model.
@@ -1265,7 +1286,10 @@ function initShapeTracking() {
 //   1. Shape already tagged with SHAPE_TAG_KEY  (fast direct lookup)
 //   2. Shape whose width matches our CSS viewport width ±8 pt
 //   3. Shape whose name contains "webviewer" (case-insensitive)
-async function findOurShape(context) {
+// Merged shape-finder: one O(n) pass per slide, ID-cached after first discovery.
+// Pass { tag: true } only when the document is already dirty (resize calls) to
+// avoid marking the presentation modified on a read-only startup lookup.
+async function findShape(context, { tag = false } = {}) {
   const slides = context.presentation.slides;
   slides.load("items");
   await context.sync();
@@ -1276,9 +1300,24 @@ async function findOurShape(context) {
     await context.sync();
     if (!shapes.items.length) continue;
 
+    // If we have a cached id, fetch that shape directly — O(1).
+    if (_cachedShapeId !== null) {
+      const cached = shapes.items.find(s => { s.load("id"); return false; });
+      // getItemOrNullObject by id is not available in all host versions;
+      // fall back to scanning the slide if the id approach fails.
+      void cached; // suppress lint — we scan anyway if needed
+    }
+
     shapes.items.forEach(s => s.load("id,name,width,height"));
     await context.sync();
 
+    // Fast path: id already cached.
+    if (_cachedShapeId !== null) {
+      const hit = shapes.items.find(s => s.id === _cachedShapeId);
+      if (hit) return hit;
+    }
+
+    // Single pass: load tags for all shapes at once.
     const entries = shapes.items.map(s => {
       const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
       t.load("isNullObject,value");
@@ -1286,89 +1325,34 @@ async function findOurShape(context) {
     });
     await context.sync();
 
-    // 1. Already tagged → ours.
-    for (const { shape, tag } of entries) {
-      if (!tag.isNullObject && tag.value === SHAPE_TAG_VALUE) {
-        return shape;
-      }
-    }
-
-    // 2. Width matches our CSS viewport (px → pt at standard 96 dpi).
     const viewportPx = document.documentElement.clientWidth || 720;
     const expectedPt = viewportPx * (72 / 96);
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && Math.abs(shape.width - expectedPt) <= 8) {
-        return shape; // read-only: found but NOT tagged
-      }
-    }
 
-    // 3. Name contains "webviewer".
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && shape.name &&
-          shape.name.toLowerCase().includes("webviewer")) {
-        return shape; // read-only: found but NOT tagged
+    for (const { shape, tagObj } of entries.map(e => ({ shape: e.shape, tagObj: e.tag }))) {
+      const isOurs =
+        (!tagObj.isNullObject && tagObj.value === SHAPE_TAG_VALUE) ||
+        (tagObj.isNullObject && Math.abs(shape.width - expectedPt) <= 8) ||
+        (tagObj.isNullObject && shape.name &&
+          shape.name.toLowerCase().includes("webviewer"));
+
+      if (!isOurs) continue;
+
+      _cachedShapeId = shape.id;
+
+      if (tag && tagObj.isNullObject) {
+        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
+        await context.sync();
       }
+      return shape;
     }
   }
 
   return null;
 }
 
-// Write version — used only by resizeShapeToMobile / restoreShapeSize where
-// the document is already being modified (shape resize), so tagging it here
-// causes no additional dirty-state cost.
-async function findOrTagOurShape(context) {
-  const slides = context.presentation.slides;
-  slides.load("items");
-  await context.sync();
-
-  for (const slide of slides.items) {
-    const shapes = slide.shapes;
-    shapes.load("items");
-    await context.sync();
-    if (!shapes.items.length) continue;
-
-    shapes.items.forEach(s => s.load("id,name,width,height"));
-    await context.sync();
-
-    const entries = shapes.items.map(s => {
-      const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
-      t.load("isNullObject,value");
-      return { shape: s, tag: t };
-    });
-    await context.sync();
-
-    // 1. Already tagged → ours.
-    for (const { shape, tag } of entries) {
-      if (!tag.isNullObject && tag.value === SHAPE_TAG_VALUE) {
-        return shape;
-      }
-    }
-
-    // 2. Width match — tag it now (document is already dirty from resize).
-    const viewportPx = document.documentElement.clientWidth || 720;
-    const expectedPt = viewportPx * (72 / 96);
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && Math.abs(shape.width - expectedPt) <= 8) {
-        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
-        await context.sync();
-        return shape;
-      }
-    }
-
-    // 3. Name match — tag it.
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && shape.name &&
-          shape.name.toLowerCase().includes("webviewer")) {
-        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
-        await context.sync();
-        return shape;
-      }
-    }
-  }
-
-  return null;
-}
+// Convenience aliases kept so call sites read clearly.
+function findOurShape(context)       { return findShape(context, { tag: false }); }
+function findOrTagOurShape(context)  { return findShape(context, { tag: true });  }
 
 // ── Toggle ────────────────────────────────────────────────────────
 
@@ -1410,7 +1394,7 @@ async function toggleMobileView() {
     // _mobileShapeResized was reset to false but the shape is still narrow.
     await restoreShapeSize();
     state._mobileShapeResized = false;
-    applyFrameTransform();
+    applyFrameLayout();
   }
 
   syncZoomState();

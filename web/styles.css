@@ -177,12 +177,17 @@ body {
   width: 40%;
   height: 100%;
   background: var(--accent);
-  animation: loading-slide 1.2s ease-in-out infinite;
 }
 
-@keyframes loading-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(350%); }
+@media (prefers-reduced-motion: no-preference) {
+  .loading-bar::after {
+    animation: loading-slide 1.2s ease-in-out infinite;
+  }
+
+  @keyframes loading-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
 }
 
 /* â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -472,10 +477,15 @@ body {
   max-height: 250px;
   overflow-y: auto;
   box-shadow: var(--shadow);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .recent-dropdown.is-hidden {
-  display: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
 }
 
 .recent-header {
@@ -650,6 +660,17 @@ iframe.smart-invert {
 
 .toast.is-hidden { display: block !important; }
 
+/* Dropdown menus use opacity+translateY transitions instead of display:none */
+.more-dropdown.is-hidden,
+.recent-dropdown.is-hidden { display: block !important; }
+
+.more-dropdown.is-hidden,
+#refresh-dropdown.is-hidden {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
 /* ── Toolbar backdrop when content is loaded ──────────────────────── */
 
 .shell:not(.is-empty) .toolbar {
@@ -747,6 +768,9 @@ iframe.smart-invert {
   border: 2px solid var(--accent);
   min-width: 190px;
   box-shadow: var(--shadow);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .more-item {
@@ -792,6 +816,31 @@ iframe.smart-invert {
 .more-item svg {
   flex-shrink: 0;
   color: inherit;
+}
+
+/* ── Draw Color Swatches ──────────────────────────────────────────── */
+
+.draw-colors {
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.draw-colors:hover { background: none; }
+
+.draw-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.1s;
+}
+
+.draw-swatch.is-active {
+  border-color: var(--accent);
+  outline: 2px solid var(--panel-bg);
+  outline-offset: -4px;
 }
 
 /* ── Support Page ─────────────────────────────────────────────────── */

@@ -71,6 +71,7 @@ export function createScrollController(state, ui, { getFrameIframes, syncAdvance
   }
 
   function startAutoScrollAnimation() {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     stopAutoScrollAnimation();
     _autoScrollLast = null;
     state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
