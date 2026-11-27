@@ -7,19 +7,19 @@ export function createScrollController(state, ui, { getFrameIframes, syncAdvance
 
   function applyAutoScrollIframes() {
     const containerH = ui.frame.clientHeight || 400;
-    getFrameIframes().forEach(iframe => {
+    for (const iframe of getFrameIframes()) {
       iframe.style.height = `${containerH * 3}px`;
-    });
+    }
   }
 
   function resetAutoScrollIframes() {
-    getFrameIframes().forEach(iframe => {
+    for (const iframe of getFrameIframes()) {
       iframe.style.height = "";
       iframe.style.transform = "";
       iframe.style.transformOrigin = "";
       iframe.style.opacity = "";
       iframe.style.transition = "";
-    });
+    }
   }
 
   function stopAutoScrollAnimation() {
@@ -44,22 +44,22 @@ export function createScrollController(state, ui, { getFrameIframes, syncAdvance
       state.autoScrollPos = newPos;
 
       const iframes = getFrameIframes();
-      iframes.forEach(iframe => {
+      for (const iframe of iframes) {
         iframe.style.transformOrigin = "top left";
         iframe.style.transform = `translateY(-${state.autoScrollPos}px)`;
-      });
+      }
 
       // On wrap, fade out instantly then fade back in so the jump reads as an
       // intentional reset rather than a visual glitch.
       if (wrapped) {
-        iframes.forEach(f => {
+        for (const f of iframes) {
           f.style.transition = "none";
           f.style.opacity = "0";
           requestAnimationFrame(() => {
             f.style.transition = "opacity 0.5s ease";
             f.style.opacity = "1";
           });
-        });
+        }
       }
     }
 

@@ -6,14 +6,26 @@
     "enabled": true,
     "rules": {
       "recommended": false,
+      "complexity": {
+        "noForEach": "error",
+        "useOptionalChain": "error"
+      },
+      "correctness": {
+        "useIsNan": "error"
+      },
+      "style": {
+        "useConst": "error",
+        "useExponentiationOperator": "error",
+        "useNumberNamespace": "error",
+        "useSingleVarDeclarator": "error",
+        "useTemplate": "error"
+      },
       "suspicious": {
         "noDebugger": "error",
         "noDoubleEquals": "error",
         "noDuplicateCase": "error",
-        "noDuplicateObjectKeys": "error"
-      },
-      "correctness": {
-        "useIsNan": "error"
+        "noDuplicateObjectKeys": "error",
+        "noGlobalIsNan": "error"
       }
     }
   },
