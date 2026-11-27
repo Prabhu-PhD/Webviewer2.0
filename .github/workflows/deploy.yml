@@ -32,6 +32,9 @@ jobs:
       - name: Syntax check
         run: node --check web/app.js && node --check web/adapters.js && node --check web/scroll.js && node --check web/draw.js && node --check scripts/serve.mjs && node --check scripts/stamp-version.mjs
 
+      - name: Lint
+        run: npx --yes @biomejs/biome@1.9.4 lint --diagnostic-level=error web/ scripts/ test/
+
       - name: Unit tests
         run: node --test "test/**/*.test.js"
 
