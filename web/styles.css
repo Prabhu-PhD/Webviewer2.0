@@ -177,12 +177,17 @@ body {
   width: 40%;
   height: 100%;
   background: var(--accent);
-  animation: loading-slide 1.2s ease-in-out infinite;
 }
 
-@keyframes loading-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(350%); }
+@media (prefers-reduced-motion: no-preference) {
+  .loading-bar::after {
+    animation: loading-slide 1.2s ease-in-out infinite;
+  }
+
+  @keyframes loading-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
 }
 
 /* â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -204,7 +209,7 @@ body {
   pointer-events: none;
 }
 
-.toast.is-hidden {
+.toast.overlay-hidden {
   opacity: 0;
   transform: translateY(-6px);
 }
@@ -292,7 +297,7 @@ body {
   opacity: 0.7;
 }
 
-.empty-state.is-hidden {
+.empty-state.overlay-hidden {
   opacity: 0;
   pointer-events: none;
 }
@@ -311,7 +316,7 @@ body {
   transition: opacity 0.3s ease;
 }
 
-.block-overlay.is-hidden {
+.block-overlay.overlay-hidden {
   opacity: 0;
   pointer-events: none;
 }
@@ -472,10 +477,15 @@ body {
   max-height: 250px;
   overflow-y: auto;
   box-shadow: var(--shadow);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .recent-dropdown.is-hidden {
-  display: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
 }
 
 .recent-header {
@@ -547,7 +557,7 @@ body {
   transition: opacity 0.3s ease;
 }
 
-.qr-overlay.is-hidden {
+.qr-overlay.overlay-hidden {
   opacity: 0;
   pointer-events: none;
 }
@@ -643,12 +653,22 @@ iframe.smart-invert {
 
 .is-hidden { display: none !important; }
 
-/* Overlay elements use opacity transitions — must stay in layout when "hidden" */
-.block-overlay.is-hidden,
-.qr-overlay.is-hidden,
-.empty-state.is-hidden { display: flex !important; }
+/* Overlay elements transition via opacity — no display change, so no layout jump */
+.overlay-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
-.toast.is-hidden { display: block !important; }
+/* Dropdown menus use opacity+translateY transitions instead of display:none */
+.more-dropdown.is-hidden,
+.recent-dropdown.is-hidden { display: block !important; }
+
+.more-dropdown.is-hidden,
+#refresh-dropdown.is-hidden {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
 
 /* ── Toolbar backdrop when content is loaded ──────────────────────── */
 
@@ -717,7 +737,12 @@ iframe.smart-invert {
   min-width: 150px;
 }
 
-/* ── Zoom Level Button ────────────────────────────────────────────── */
+/* ── Zoom Container & Button ──────────────────────────────────────── */
+
+.zoom-container {
+  position: relative;
+  display: inline-flex;
+}
 
 .zoom-level-btn {
   width: auto;
@@ -725,8 +750,6 @@ iframe.smart-invert {
   padding: 0 6px;
   font-size: 0.78rem;
   font-weight: 600;
-  border-left: none;
-  margin-left: 0;
   color: var(--text-light);
   letter-spacing: 0.01em;
 }
@@ -747,6 +770,9 @@ iframe.smart-invert {
   border: 2px solid var(--accent);
   min-width: 190px;
   box-shadow: var(--shadow);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .more-item {
@@ -794,11 +820,36 @@ iframe.smart-invert {
   color: inherit;
 }
 
+/* ── Draw Color Swatches ──────────────────────────────────────────── */
+
+.draw-colors {
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.draw-colors:hover { background: none; }
+
+.draw-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.1s;
+}
+
+.draw-swatch.is-active {
+  border-color: var(--accent);
+  outline: 2px solid var(--panel-bg);
+  outline-offset: -4px;
+}
+
 /* ── Support Page ─────────────────────────────────────────────────── */
 
 .support-body {
-  background: #f5f5f5;
-  color: #222;
+  background: var(--hover-bg);
+  color: var(--text-light);
   min-height: 100%;
   overflow: auto;
   padding: 32px 16px 64px;
@@ -813,7 +864,7 @@ iframe.smart-invert {
 .support-shell h1 {
   margin: 0 0 12px;
   font-size: 1.6rem;
-  color: #111;
+  color: var(--text-light);
 }
 
 .eyebrow {
@@ -822,19 +873,19 @@ iframe.smart-invert {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #e8844a;
+  color: var(--accent);
 }
 
 .support-lead {
   margin: 0 0 28px;
   font-size: 1rem;
-  color: #444;
+  color: var(--text-light);
   line-height: 1.6;
 }
 
 .support-card {
-  background: #fff;
-  border: 2px solid #ddd;
+  background: var(--panel-bg);
+  border: 2px solid var(--btn-border);
   padding: 20px 24px;
   margin-bottom: 16px;
 }
@@ -843,13 +894,13 @@ iframe.smart-invert {
   margin: 0 0 12px;
   font-size: 1rem;
   font-weight: 700;
-  color: #111;
+  color: var(--text-light);
 }
 
 .support-card ul {
   margin: 0;
   padding-left: 20px;
-  color: #444;
+  color: var(--text-light);
   font-size: 0.9rem;
   line-height: 1.8;
 }
@@ -857,7 +908,7 @@ iframe.smart-invert {
 .support-card p {
   margin: 0 0 10px;
   font-size: 0.9rem;
-  color: #444;
+  color: var(--text-light);
   line-height: 1.6;
 }
 
@@ -868,13 +919,13 @@ iframe.smart-invert {
 .support-card code {
   font-family: monospace;
   font-size: 0.85em;
-  background: #f0f0f0;
+  background: var(--btn-hover);
   padding: 1px 4px;
   border-radius: 3px;
 }
 
 .support-card a {
-  color: #e8844a;
+  color: var(--accent);
 }
 
 .support-legal {
@@ -882,7 +933,7 @@ iframe.smart-invert {
   padding-bottom: 40px;
   text-align: center;
   font-size: 0.82rem;
-  color: #888;
+  color: var(--text-placeholder);
   display: flex;
   gap: 8px;
   justify-content: center;
@@ -890,10 +941,10 @@ iframe.smart-invert {
 }
 
 .support-legal a {
-  color: #888;
+  color: var(--text-placeholder);
   text-decoration: underline;
 }
 
 .support-legal a:hover {
-  color: #e8844a;
+  color: var(--accent);
 }

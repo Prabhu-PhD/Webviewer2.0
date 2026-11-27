@@ -1,3 +1,7 @@
+import { KNOWN_BLOCKED_DOMAINS, isKnownBlockedDomain, adaptProviderUrl, joinNotes } from './adapters.js';
+import { createScrollController } from './scroll.js';
+import { createDrawController } from './draw.js';
+
 const STORAGE_KEYS = {
   chromeVisible: "webviewer2.chromeVisible",
   currentUrl: "webviewer2.currentUrl",
@@ -13,25 +17,6 @@ const STORAGE_KEYS = {
 };
 
 const LOAD_TIMEOUT_MS = 9000;
-
-// Sites we know will absolutely refuse to load in an iframe due to X-Frame-Options or CSP frame-ancestors.
-// This saves the user 9 seconds of waiting for a timeout.
-// Exact-hostname matches only (see isKnownBlockedDomain). Bare words like
-// "google" never equal a real hostname, so they're omitted. Matching is exact
-// — NOT suffix-based — so supported subdomains (docs/maps/lookerstudio.google.com)
-// are unaffected.
-const KNOWN_BLOCKED_DOMAINS = [
-  "google.com", "www.google.com",
-  "facebook.com", "www.facebook.com",
-  "twitter.com", "x.com",
-  "github.com", "www.github.com",
-  "reddit.com", "www.reddit.com",
-  "amazon.com", "www.amazon.com",
-  "apple.com", "www.apple.com",
-  "microsoft.com", "www.microsoft.com",
-  "linkedin.com", "www.linkedin.com",
-  "instagram.com", "www.instagram.com"
-];
 
 const state = {
   chromeVisible: true,
@@ -67,8 +52,10 @@ const state = {
   _lastSavedRefreshInterval: undefined  // last refreshInterval written to document settings
 };
 
-let _autoScrollLast = null; // rAF timestamp tracking
+let scroll;                 // scroll controller (createScrollController)
+let draw;                   // draw controller (createDrawController)
 let _iframeCache = [];      // cached NodeList snapshot, invalidated on each loadIntoFrame
+let _cachedShapeId = null;  // shape id once found — skips the O(n) search on subsequent calls
 
 const ui = {};
 let toastTimer = null;
@@ -77,6 +64,8 @@ document.addEventListener("DOMContentLoaded", initialize);
 
 function initialize() {
   cacheUi();
+  scroll = createScrollController(state, ui, { getFrameIframes, syncAdvancedTools });
+  draw = createDrawController(ui);
   bindEvents();
   hydrateFromBrowserStorage();
 
@@ -109,13 +98,15 @@ function cacheUi() {
   ui.refreshBtn = document.getElementById("refresh-btn");
   ui.refreshDropdown = document.getElementById("refresh-dropdown");
   ui.refreshList = document.getElementById("refresh-list");
-  ui.zoomInBtn = document.getElementById("zoom-in-btn");
-  ui.zoomOutBtn = document.getElementById("zoom-out-btn");
-  ui.zoomLevelBtn = document.getElementById("zoom-level-btn");
+  ui.zoomBtn = document.getElementById("zoom-btn");
+  ui.zoomDropdown = document.getElementById("zoom-dropdown");
+  ui.zoomList = document.getElementById("zoom-list");
   ui.desktopFitBtn = document.getElementById("desktop-fit-btn");
   ui.safeModeBtn = document.getElementById("safe-mode-btn");
   ui.drawModeBtn = document.getElementById("draw-mode-btn");
   ui.clearDrawBtn = document.getElementById("clear-draw-btn");
+  ui.undoDrawBtn = document.getElementById("undo-draw-btn");
+  ui.drawColorRow = document.getElementById("draw-color-row");
   ui.invertBtn = document.getElementById("invert-btn");
   ui.safeModeOverlay = document.getElementById("safe-mode-overlay");
   ui.drawCanvas = document.getElementById("draw-canvas");
@@ -142,9 +133,15 @@ function bindEvents() {
   document.addEventListener("click", handleDocumentClick);
 
   ui.themeBtn.addEventListener("click", toggleTheme);
-  ui.zoomInBtn.addEventListener("click", zoomIn);
-  ui.zoomOutBtn.addEventListener("click", zoomOut);
-  ui.zoomLevelBtn.addEventListener("click", resetZoom);
+  ui.zoomBtn.addEventListener("click", () => {
+    const open = ui.zoomDropdown.classList.toggle("is-hidden") === false;
+    ui.zoomBtn.setAttribute("aria-expanded", String(open));
+    if (open) syncZoomMenuState();
+  });
+  ui.zoomList.addEventListener("click", handleZoomOptionClick);
+  ui.zoomList.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleZoomOptionClick(e); }
+  });
   ui.moreBtn.addEventListener("click", () => {
     const open = ui.moreDropdown.classList.toggle("is-hidden") === false;
     ui.moreBtn.setAttribute("aria-expanded", String(open));
@@ -152,21 +149,30 @@ function bindEvents() {
   ui.desktopFitBtn.addEventListener("click", toggleDesktopFit);
   ui.safeModeBtn.addEventListener("click", toggleSafeMode);
   ui.drawModeBtn.addEventListener("click", toggleDrawMode);
-  ui.clearDrawBtn.addEventListener("click", clearCanvas);
+  ui.clearDrawBtn.addEventListener("click", draw.clearCanvas);
+  ui.undoDrawBtn.addEventListener("click", draw.undoStroke);
+  ui.drawColorRow.addEventListener("click", (e) => {
+    const swatch = e.target.closest(".draw-swatch");
+    if (!swatch) return;
+    ui.drawColorRow.querySelectorAll(".draw-swatch").forEach(s => s.classList.remove("is-active"));
+    swatch.classList.add("is-active");
+    draw.setColor(swatch.dataset.color);
+  });
   ui.invertBtn.addEventListener("click", toggleInvertTheme);
   ui.mobileViewBtn.addEventListener("click", toggleMobileView);
-  ui.autoScrollBtn.addEventListener("click", toggleAutoScroll);
+  ui.autoScrollBtn.addEventListener("click", scroll.toggleAutoScroll);
 
   // Set up drawing canvas
-  setupDrawing();
+  draw.setupDrawing();
 
-  // Re-apply view transforms on resize
+  // Re-apply view transforms on resize; also resize draw canvas when active
   window.addEventListener("resize", () => {
     if (state.desktopFit) {
-      applyDesktopFitScale(document.body.clientWidth);
+      applyFrameLayout(document.body.clientWidth);
     } else if (state.mobileView) {
       applyMobileView();
     }
+    if (state.drawMode) draw.resizeCanvas();
   });
 
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
@@ -185,10 +191,32 @@ function bindEvents() {
     ui.recentDropdown.classList.add("is-hidden");
     ui.refreshDropdown.classList.add("is-hidden");
     ui.refreshBtn.setAttribute("aria-expanded", "false");
+    ui.zoomDropdown.classList.add("is-hidden");
+    ui.zoomBtn.setAttribute("aria-expanded", "false");
     ui.moreDropdown.classList.add("is-hidden");
     ui.moreBtn.setAttribute("aria-expanded", "false");
-    if (!ui.qrOverlay.classList.contains("is-hidden")) hideQrCode();
-    if (!ui.blockOverlay.classList.contains("is-hidden")) dismissBlockOverlay();
+    if (!ui.qrOverlay.classList.contains("overlay-hidden")) hideQrCode();
+    if (!ui.blockOverlay.classList.contains("overlay-hidden")) dismissBlockOverlay();
+  });
+
+  // Focus trap for block overlay (2 buttons: cycle Tab between them)
+  ui.blockOverlay.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const focusable = [...ui.blockOverlay.querySelectorAll("button:not([disabled])")];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+
+  // Focus trap for QR overlay (single button: prevent Tab from escaping)
+  ui.qrOverlay.addEventListener("keydown", (e) => {
+    if (e.key === "Tab") e.preventDefault();
   });
 }
 
@@ -295,7 +323,7 @@ function hydrateFromDocumentSettings() {
     syncZoomState();
     syncAdvancedTools();
     applyRefreshInterval();
-    if (state.desktopFit) applyDesktopFitScale(document.body.clientWidth);
+    if (state.desktopFit) applyFrameLayout(document.body.clientWidth);
 
     const savedUrl = settings.get(STORAGE_KEYS.currentUrl);
     // currentUrl is exclusively owned by document settings (per-shape).
@@ -349,11 +377,11 @@ function loadIntoFrame(rawInput, options = {}) {
   state.autoScrollPos = 0;
 
   if (!inputUrlString) {
-    ui.emptyState.classList.remove("is-hidden");
+    ui.emptyState.classList.remove("overlay-hidden");
     return;
   }
-  
-  ui.emptyState.classList.add("is-hidden");
+
+  ui.emptyState.classList.add("overlay-hidden");
 
   // Split into up to 4 URLs for split-screen — but only when the commas
   // genuinely separate distinct URLs (see splitUrls). A single URL that
@@ -432,7 +460,7 @@ function loadIntoFrame(rawInput, options = {}) {
   if (state.mobileView) {
     requestAnimationFrame(() => applyMobileView());
   } else if (state.autoScrollSpeed > 0) {
-    applyAutoScrollIframes();
+    scroll.applyAutoScrollIframes();
   }
 
   if (state.pendingLoads > 0) {
@@ -480,16 +508,13 @@ function handleLoadTimeout() {
   showBlockOverlay();
 }
 
-function isKnownBlockedDomain(hostname) {
-  return KNOWN_BLOCKED_DOMAINS.includes(hostname.toLowerCase());
-}
-
 function showBlockOverlay() {
-  ui.blockOverlay.classList.remove("is-hidden");
+  ui.blockOverlay.classList.remove("overlay-hidden");
+  ui.blockOpenBtn.focus();
 }
 
 function hideBlockOverlay() {
-  ui.blockOverlay.classList.add("is-hidden");
+  ui.blockOverlay.classList.add("overlay-hidden");
 }
 
 function dismissBlockOverlay() {
@@ -503,7 +528,7 @@ function dismissBlockOverlay() {
   clearTimeout(state.loadTimer);
   ui.frame.innerHTML = "";
   ui.frame.dataset.count = 0;
-  ui.emptyState.classList.remove("is-hidden");
+  ui.emptyState.classList.remove("overlay-hidden");
   syncEmptyState();
   persistState();
 }
@@ -573,7 +598,7 @@ function syncActiveView() {
       state.chromeVisible = false;
       syncChromeState(); // adds is-chrome-hidden → floating toggle appears
 
-      clearCanvas();
+      draw.clearCanvas();
       hideBlockOverlay();
       // Intentionally no forceRefresh() — the loaded webpage must persist
       // unchanged across edit ↔ slideshow transitions.
@@ -615,7 +640,7 @@ function forceRefresh() {
     if (state.mobileView) {
       requestAnimationFrame(() => applyMobileView());
     } else if (state.autoScrollSpeed > 0) {
-      applyAutoScrollIframes();
+      scroll.applyAutoScrollIframes();
     }
   }
 }
@@ -822,563 +847,12 @@ function getResolvedUrls() {
   return urls;
 }
 
-/* ── Provider Adapters ──────────────────────────────────────────── */
-
-function adaptProviderUrl(url) {
-  const hostname = normalizeHostname(url.hostname);
-
-  if (hostname === "youtu.be" || hostname.endsWith("youtube.com") || hostname.endsWith("youtube-nocookie.com")) {
-    return adaptYouTubeUrl(url);
-  }
-
-  if (hostname === "vimeo.com" || hostname === "player.vimeo.com") {
-    return adaptVimeoUrl(url);
-  }
-
-  if (hostname === "loom.com") {
-    return adaptLoomUrl(url);
-  }
-
-  if (hostname === "docs.google.com") {
-    return adaptGoogleDocsUrl(url);
-  }
-
-  if (hostname === "app.powerbi.com") {
-    return adaptPowerBiUrl(url);
-  }
-
-  if (hostname === "forms.office.com" || hostname === "forms.microsoft.com") {
-    return {
-      note: "",
-      providerName: "Microsoft Forms",
-      url
-    };
-  }
-
-  if (hostname.endsWith(".sharepoint.com") || hostname.endsWith(".sharepoint.cn")) {
-    return adaptSharePointUrl(url);
-  }
-
-  if (hostname === "figma.com" || hostname === "www.figma.com") {
-    return adaptFigmaUrl(url);
-  }
-
-  if (hostname === "miro.com") {
-    return adaptMiroUrl(url);
-  }
-
-  if (hostname === "canva.com" || hostname === "www.canva.com") {
-    return adaptCanvaUrl(url);
-  }
-
-  if (hostname === "canva.link") {
-    throw new Error("Canva short links cannot be embedded directly. Open it in your browser and copy the full link.");
-  }
-
-  if (hostname === "airtable.com") {
-    return adaptAirtableUrl(url);
-  }
-
-  if (hostname === "codepen.io") {
-    return adaptCodePenUrl(url);
-  }
-
-  if (hostname === "open.spotify.com") {
-    return adaptSpotifyUrl(url);
-  }
-
-  // Google Maps — must come after the generic google.com block so the adapter
-  // can switch the hostname to maps.google.com (which is not in KNOWN_BLOCKED_DOMAINS).
-  if (hostname === "google.com" && url.pathname.startsWith("/maps")) {
-    return adaptGoogleMapsUrl(url);
-  }
-
-  if (hostname === "maps.google.com") {
-    return adaptGoogleMapsUrl(url);
-  }
-
-  // Google Maps short links (mobile share) — can't resolve without a server
-  if (hostname === "maps.app.goo.gl" || (hostname === "goo.gl" && url.pathname.startsWith("/maps"))) {
-    throw new Error("Google Maps short links can't be embedded directly. In Google Maps, tap Share → Embed a map and paste the iframe code instead.");
-  }
-
-  // Any other shortened link can't be resolved client-side.
-  if (hostname === "goo.gl") {
-    throw new Error("Shortened links can't be resolved here — paste the full destination URL instead.");
-  }
-
-  if (hostname === "lookerstudio.google.com" || hostname === "datastudio.google.com") {
-    return adaptLookerStudioUrl(url);
-  }
-
-  if (hostname === "mentimeter.com") {
-    return adaptMentimeterUrl(url);
-  }
-
-  if (hostname === "padlet.com") {
-    return adaptPadletUrl(url);
-  }
-
-  if (hostname === "public.tableau.com") {
-    return adaptTableauPublicUrl(url);
-  }
-
-  if (hostname === "openstreetmap.org") {
-    return adaptOpenStreetMapUrl(url);
-  }
-
-  return {
-    note: "",
-    providerName: formatProviderName(hostname),
-    url
-  };
-}
-
-function adaptYouTubeUrl(url) {
-  const hostname = normalizeHostname(url.hostname);
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  let videoId = "";
-
-  if (hostname === "youtu.be") {
-    videoId = pathParts[0] ?? "";
-  } else if (pathParts[0] === "watch") {
-    videoId = url.searchParams.get("v") ?? "";
-  } else if (["embed", "shorts", "live"].includes(pathParts[0] ?? "")) {
-    videoId = pathParts[1] ?? "";
-  }
-
-  if (!videoId) {
-    return {
-      note: "",
-      providerName: "YouTube",
-      url
-    };
-  }
-
-  const embedUrl = new URL(`https://www.youtube-nocookie.com/embed/${videoId}`);
-  const startSeconds = extractStartSeconds(url.searchParams.get("t") ?? url.searchParams.get("start"));
-  const playlistId = url.searchParams.get("list");
-
-  if (startSeconds > 0) {
-    embedUrl.searchParams.set("start", String(startSeconds));
-  }
-
-  if (playlistId) {
-    embedUrl.searchParams.set("list", playlistId);
-  }
-
-  const transformed = embedUrl.toString() !== url.toString();
-
-  return {
-    note: transformed ? "Converted to YouTube embed URL." : "",
-    providerName: "YouTube",
-    url: transformed ? embedUrl : url
-  };
-}
-
-function adaptVimeoUrl(url) {
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  const numericId =
-    pathParts[0] === "video"
-      ? pathParts[1]
-      : pathParts.find((segment) => /^\d+$/.test(segment));
-
-  if (!numericId) {
-    return {
-      note: "",
-      providerName: "Vimeo",
-      url
-    };
-  }
-
-  const embedUrl = new URL(`https://player.vimeo.com/video/${numericId}`);
-  const transformed = embedUrl.toString() !== url.toString();
-
-  return {
-    note: transformed ? "Converted to Vimeo embed URL." : "",
-    providerName: "Vimeo",
-    url: transformed ? embedUrl : url
-  };
-}
-
-function adaptLoomUrl(url) {
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  const loomId = pathParts[1] ?? "";
-
-  if (!loomId || !["share", "embed"].includes(pathParts[0] ?? "")) {
-    return {
-      note: "",
-      providerName: "Loom",
-      url
-    };
-  }
-
-  const embedUrl = new URL(`https://www.loom.com/embed/${loomId}`);
-  const transformed = embedUrl.toString() !== url.toString();
-
-  return {
-    note: transformed ? "Converted to Loom embed URL." : "",
-    providerName: "Loom",
-    url: transformed ? embedUrl : url
-  };
-}
-
-function adaptGoogleDocsUrl(url) {
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  const docType = pathParts[0] ?? "";
-  const documentId = pathParts[2] ?? "";
-
-  // URL doesn't have the standard /type/d/ID structure — pass through
-  if (pathParts[1] !== "d" || !documentId) {
-    return { note: "", providerName: "Google Workspace", url };
-  }
-
-  if (docType === "presentation") {
-    return {
-      note: "Converted to Google Slides embed.",
-      providerName: "Google Slides",
-      url: new URL(`https://docs.google.com/presentation/d/${documentId}/embed`)
-    };
-  }
-
-  if (docType === "document") {
-    return {
-      note: "Converted to Google Docs preview.",
-      providerName: "Google Docs",
-      url: new URL(`https://docs.google.com/document/d/${documentId}/preview`)
-    };
-  }
-
-  if (docType === "spreadsheets") {
-    return {
-      note: "Converted to Google Sheets preview.",
-      providerName: "Google Sheets",
-      url: new URL(`https://docs.google.com/spreadsheets/d/${documentId}/preview`)
-    };
-  }
-
-  if (docType === "forms") {
-    // ?embedded=true removes the Google header bar so the form fills the iframe
-    const embedUrl = new URL(url.toString());
-    if (!embedUrl.searchParams.has("embedded")) {
-      embedUrl.searchParams.set("embedded", "true");
-    }
-    const transformed = embedUrl.toString() !== url.toString();
-    return {
-      note: transformed ? "Converted to Google Forms embed." : "",
-      providerName: "Google Forms",
-      url: embedUrl
-    };
-  }
-
-  return { note: "", providerName: "Google Workspace", url };
-}
-
-function adaptPowerBiUrl(url) {
-  const isAuthoringUrl = /\/groups\/.+\/reports\//i.test(url.pathname) && !/reportEmbed/i.test(url.pathname);
-
-  return {
-    note: isAuthoringUrl
-      ? "This Power BI link may need a publish-to-web embed URL."
-      : "",
-    providerName: "Power BI",
-    url
-  };
-}
-function adaptSharePointUrl(url) {
-  if (url.pathname.includes("_layouts/15/Doc.aspx")) {
-    const embedUrl = new URL(url.toString());
-    embedUrl.searchParams.set("action", "embedview");
-    embedUrl.searchParams.set("wdAllowInteractivity", "True");
-    
-    const transformed = embedUrl.toString() !== url.toString();
-    
-    return {
-      note: transformed ? "Converted to SharePoint embed view." : "",
-      providerName: "SharePoint",
-      url: transformed ? embedUrl : url
-    };
-  }
-  
-  return {
-    note: "",
-    providerName: "SharePoint",
-    url
-  };
-}
-
-function adaptFigmaUrl(url) {
-  // Only convert design or prototype links that aren't already embeds
-  if ((url.pathname.startsWith("/design/") || url.pathname.startsWith("/file/") || url.pathname.startsWith("/proto/")) && url.pathname !== "/embed") {
-    const embedUrl = new URL("https://www.figma.com/embed");
-    embedUrl.searchParams.set("embed_host", "share");
-    embedUrl.searchParams.set("url", url.toString());
-    
-    return {
-      note: "Converted to Figma embed.",
-      providerName: "Figma",
-      url: embedUrl
-    };
-  }
-  
-  return {
-    note: "",
-    providerName: "Figma",
-    url
-  };
-}
-
-function adaptMiroUrl(url) {
-  if (url.pathname.startsWith("/app/board/")) {
-    const embedUrl = new URL(url.toString().replace("/app/board/", "/app/live-embed/"));
-    return {
-      note: "Converted to Miro embed.",
-      providerName: "Miro",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Miro", url };
-}
-
-function adaptCanvaUrl(url) {
-  if (url.pathname.startsWith("/design/")) {
-    let embedUrl = new URL(url.toString());
-    
-    if (url.pathname.endsWith("/edit") || url.pathname.endsWith("/watch")) {
-      embedUrl.pathname = url.pathname.replace(/\/(edit|watch)$/, "/view");
-    }
-    
-    if (embedUrl.pathname.endsWith("/view")) {
-      embedUrl.searchParams.set("embed", "");
-      return {
-        note: "Converted to Canva embed.",
-        providerName: "Canva",
-        url: embedUrl
-      };
-    }
-  }
-  return { note: "", providerName: "Canva", url };
-}
-
-function adaptAirtableUrl(url) {
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  if (pathParts[0] && pathParts[0].startsWith("shr")) {
-    const embedUrl = new URL(`https://airtable.com/embed/${pathParts[0]}`);
-    embedUrl.search = url.search;
-    return {
-      note: "Converted to Airtable embed.",
-      providerName: "Airtable",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Airtable", url };
-}
-
-function adaptCodePenUrl(url) {
-  if (url.pathname.includes("/pen/")) {
-    const embedUrl = new URL(url.toString().replace("/pen/", "/embed/"));
-    return {
-      note: "Converted to CodePen embed.",
-      providerName: "CodePen",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "CodePen", url };
-}
-
-function adaptSpotifyUrl(url) {
-  const pathParts = url.pathname.split("/").filter(Boolean);
-  if (pathParts.length >= 2 && !pathParts.includes("embed")) {
-    const type = pathParts[0]; // track, album, playlist, episode
-    const id = pathParts[1];
-    const embedUrl = new URL(`https://open.spotify.com/embed/${type}/${id}`);
-    return {
-      note: "Converted to Spotify embed.",
-      providerName: "Spotify",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Spotify", url };
-}
-
-function adaptGoogleMapsUrl(url) {
-  // Already an embed path — switch hostname to maps.google.com so the
-  // known-blocked-domain check on www.google.com doesn't fire.
-  if (url.pathname.startsWith("/maps/embed")) {
-    const embedUrl = new URL(url.toString());
-    embedUrl.hostname = "maps.google.com";
-    return { note: "", providerName: "Google Maps", url: embedUrl };
-  }
-
-  // Place/search URL — extract coordinates and build a simple embed.
-  const coordMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (coordMatch) {
-    const lat = coordMatch[1];
-    const lng = coordMatch[2];
-    const zoomMatch = url.pathname.match(/@-?\d+\.\d+,-?\d+\.\d+,(\d+)z/);
-    const zoom = zoomMatch ? zoomMatch[1] : "14";
-    const embedUrl = new URL("https://maps.google.com/maps");
-    embedUrl.searchParams.set("q", `${lat},${lng}`);
-    embedUrl.searchParams.set("z", zoom);
-    embedUrl.searchParams.set("output", "embed");
-    return {
-      note: "Converted to Google Maps embed.",
-      providerName: "Google Maps",
-      url: embedUrl
-    };
-  }
-
-  // Can't auto-convert — advise using the Maps share dialog.
-  return {
-    note: "For best results: in Google Maps use Share → Embed a map and paste the iframe code here.",
-    providerName: "Google Maps",
-    url: new URL(url.toString().replace(/^https?:\/\/www\.google\.com/, "https://maps.google.com"))
-  };
-}
-
-function adaptLookerStudioUrl(url) {
-  // From: /reporting/ID/page/P_ID
-  // To:   /embed/reporting/ID/page/P_ID
-  if (url.pathname.startsWith("/reporting/") && !url.pathname.startsWith("/embed/")) {
-    const embedUrl = new URL(url.toString());
-    embedUrl.pathname = "/embed" + url.pathname;
-    return {
-      note: "Converted to Looker Studio embed.",
-      providerName: "Looker Studio",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Looker Studio", url };
-}
-
-function adaptMentimeterUrl(url) {
-  // From: /s/HASH/SLIDE_ID
-  // To:   /embed/HASH/SLIDE_ID
-  const match = url.pathname.match(/^\/s\/([^/]+)(?:\/([^/]+))?/);
-  if (match) {
-    const part1 = match[1];
-    const part2 = match[2];
-    const embedPath = part2 ? `/embed/${part1}/${part2}` : `/embed/${part1}`;
-    const embedUrl = new URL(`https://www.mentimeter.com${embedPath}`);
-    return {
-      note: "Converted to Mentimeter embed.",
-      providerName: "Mentimeter",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Mentimeter", url };
-}
-
-function adaptPadletUrl(url) {
-  // Append /embed if not already present
-  if (!url.pathname.endsWith("/embed")) {
-    const embedUrl = new URL(url.toString());
-    embedUrl.pathname = url.pathname.replace(/\/?$/, "/embed");
-    return {
-      note: "Converted to Padlet embed.",
-      providerName: "Padlet",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Padlet", url };
-}
-
-function adaptTableauPublicUrl(url) {
-  // Add embed query params to Tableau Public view URLs
-  if (!url.searchParams.has(":embed")) {
-    const embedUrl = new URL(url.toString());
-    embedUrl.searchParams.set(":embed", "y");
-    embedUrl.searchParams.set(":showVizHome", "no");
-    return {
-      note: "Converted to Tableau Public embed.",
-      providerName: "Tableau Public",
-      url: embedUrl
-    };
-  }
-  return { note: "", providerName: "Tableau Public", url };
-}
-
-function adaptOpenStreetMapUrl(url) {
-  // Already the embeddable export endpoint — pass through.
-  if (url.pathname.startsWith("/export/embed.html")) {
-    return { note: "", providerName: "OpenStreetMap", url };
-  }
-
-  // A standard OSM URL carries the view in the hash: #map=ZOOM/LAT/LNG
-  const match = url.hash.match(/map=(\d+(?:\.\d+)?)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/);
-  if (match) {
-    const zoom = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
-    const lng = parseFloat(match[3]);
-    // Approximate a bounding box around the centre; span shrinks as zoom grows.
-    const lonSpan = 360 / Math.pow(2, zoom);
-    const latSpan = lonSpan / 2;
-    const bbox = [
-      (lng - lonSpan).toFixed(5),
-      (lat - latSpan).toFixed(5),
-      (lng + lonSpan).toFixed(5),
-      (lat + latSpan).toFixed(5)
-    ].join(",");
-    const embedUrl = new URL("https://www.openstreetmap.org/export/embed.html");
-    embedUrl.searchParams.set("bbox", bbox);
-    embedUrl.searchParams.set("layer", "mapnik");
-    embedUrl.searchParams.set("marker", `${lat},${lng}`);
-    return {
-      note: "Converted to OpenStreetMap embed.",
-      providerName: "OpenStreetMap",
-      url: embedUrl
-    };
-  }
-
-  // Couldn't parse a view — point the user at the embed export tool.
-  return {
-    note: "For a map, use OpenStreetMap's Share → HTML embed link.",
-    providerName: "OpenStreetMap",
-    url
-  };
-}
-
-/* ── Utilities ──────────────────────────────────────────────────── */
-
-function normalizeHostname(hostname) {
-  return String(hostname ?? "").toLowerCase().replace(/^www\./, "").replace(/^m\./, "");
-}
-
-function formatProviderName(hostname) {
-  const providerName = hostname.replace(/^www\./, "");
-  return providerName ? providerName : "Website";
-}
-
-function extractStartSeconds(value) {
-  if (!value) {
-    return 0;
-  }
-
-  if (/^\d+$/.test(value)) {
-    return Number.parseInt(value, 10);
-  }
-
-  const match = value.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
-  if (!match) {
-    return 0;
-  }
-
-  const hours = Number.parseInt(match[1] ?? "0", 10);
-  const minutes = Number.parseInt(match[2] ?? "0", 10);
-  const seconds = Number.parseInt(match[3] ?? "0", 10);
-  return (hours * 3600) + (minutes * 60) + seconds;
-}
-
-function joinNotes(...notes) {
-  return notes.filter(Boolean).join(" ").trim();
-}
-
 /* ── Toast ──────────────────────────────────────────────────────── */
 
 function showToast(message, type = "info", duration = 4000) {
   ui.toast.textContent = message;
   ui.toast.dataset.type = type;
-  ui.toast.classList.remove("is-hidden");
+  ui.toast.classList.remove("overlay-hidden");
 
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(hideToast, duration);
@@ -1386,7 +860,7 @@ function showToast(message, type = "info", duration = 4000) {
 
 function hideToast() {
   clearTimeout(toastTimer);
-  ui.toast.classList.add("is-hidden");
+  ui.toast.classList.add("overlay-hidden");
 }
 
 function safelyHydrateUrl(value) {
@@ -1420,7 +894,7 @@ function showQrCode() {
       });
       // Update accessible label with the actual URL
       ui.qrCanvas.setAttribute("aria-label", `QR code for ${target}`);
-      ui.qrOverlay.classList.remove("is-hidden");
+      ui.qrOverlay.classList.remove("overlay-hidden");
       // Move focus to the close button so keyboard/AT users land inside the overlay
       ui.qrCloseBtn.focus();
     } else {
@@ -1432,7 +906,7 @@ function showQrCode() {
 }
 
 function hideQrCode() {
-  ui.qrOverlay.classList.add("is-hidden");
+  ui.qrOverlay.classList.add("overlay-hidden");
   // Return focus to the button that opened the overlay
   ui.qrBtn.focus();
 }
@@ -1469,7 +943,12 @@ function renderRecentUrls() {
   state.recentUrls.forEach(url => {
     const li = document.createElement("li");
     li.className = "recent-item";
-    li.textContent = url;
+    try {
+      const parsed = new URL(url);
+      li.textContent = parsed.hostname + (parsed.pathname !== "/" ? parsed.pathname : "");
+    } catch (_) {
+      li.textContent = url;
+    }
     li.title = url;
     li.tabIndex = 0;
     li.setAttribute("role", "option");
@@ -1496,6 +975,10 @@ function handleDocumentClick(event) {
     ui.refreshDropdown.classList.add("is-hidden");
     ui.refreshBtn.setAttribute("aria-expanded", "false");
   }
+  if (!ui.zoomBtn.contains(event.target) && !ui.zoomDropdown.contains(event.target)) {
+    ui.zoomDropdown.classList.add("is-hidden");
+    ui.zoomBtn.setAttribute("aria-expanded", "false");
+  }
   if (!ui.moreBtn.contains(event.target) && !ui.moreDropdown.contains(event.target)) {
     ui.moreDropdown.classList.add("is-hidden");
     ui.moreBtn.setAttribute("aria-expanded", "false");
@@ -1516,26 +999,29 @@ function syncThemeState() {
   syncMoreBtnState();
 }
 
-function zoomIn() {
-  state.zoom = Math.min(state.zoom + 0.1, 3.0);
+function handleZoomOptionClick(e) {
+  const li = e.target.closest("[data-pct]");
+  if (!li) return;
+  const pct = Number(li.dataset.pct);
+  if (!pct) return;
+  state.zoom = pct / 100;
+  state.desktopFit = false;
+  ui.zoomDropdown.classList.add("is-hidden");
+  ui.zoomBtn.setAttribute("aria-expanded", "false");
   syncZoomState();
   persistState();
 }
 
-function zoomOut() {
-  state.zoom = Math.max(state.zoom - 0.1, 0.25);
-  syncZoomState();
-  persistState();
-}
-
-function resetZoom() {
-  state.zoom = 1.0;
-  syncZoomState();
-  persistState();
+function syncZoomMenuState() {
+  if (!ui.zoomList) return;
+  const currentPct = Math.round(state.zoom * 100);
+  ui.zoomList.querySelectorAll("li[data-pct]").forEach((li) => {
+    li.setAttribute("aria-selected", String(Number(li.dataset.pct) === currentPct));
+  });
 }
 
 function syncZoomState() {
-  if (ui.zoomLevelBtn) {
+  if (ui.zoomBtn) {
     let label;
     if (state.desktopFit) {
       label = "Fit";
@@ -1544,12 +1030,12 @@ function syncZoomState() {
     } else {
       label = `${Math.round(state.zoom * 100)}%`;
     }
-    ui.zoomLevelBtn.textContent = label;
-    // Keep aria-label in sync so screen readers announce the correct value
-    ui.zoomLevelBtn.setAttribute("aria-label", `Reset zoom — current: ${label}`);
+    ui.zoomBtn.textContent = label;
+    ui.zoomBtn.setAttribute("aria-label", `Zoom — current: ${label}`);
   }
   if (state.desktopFit || state.mobileView) return;
-  applyFrameTransform();
+  applyFrameLayout();
+  syncZoomMenuState();
 }
 
 function toggleDesktopFit() {
@@ -1568,17 +1054,10 @@ function toggleDesktopFit() {
       });
     }
     // Stop any active auto-scroll
-    stopAutoScrollAnimation();
-    state.autoScrollSpeed = 0;
-    state.autoScrollPos = 0;
-    const scrollSpan = ui.autoScrollBtn.querySelector("span");
-    if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
-    resetAutoScrollIframes();
-    applyDesktopFitScale(document.body.clientWidth);
+    scroll.stopAndReset();
+    applyFrameLayout(document.body.clientWidth);
   } else {
-    ui.frame.style.transform = "";
-    ui.frame.style.width = "100%";
-    ui.frame.style.height = "100%";
+    applyFrameLayout();
   }
 
   ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
@@ -1587,13 +1066,35 @@ function toggleDesktopFit() {
   persistState();
 }
 
-function applyDesktopFitScale(containerWidth) {
-  const TARGET_DESKTOP_WIDTH = 1280;
-  const scale = Math.min(containerWidth / TARGET_DESKTOP_WIDTH, 1);
-  ui.frame.style.transformOrigin = "top left";
-  ui.frame.style.transform = `scale(${scale})`;
-  ui.frame.style.width = `${100 / scale}%`;
-  ui.frame.style.height = `${100 / scale}%`;
+// Single entry-point for all #viewer-frame transform state.
+// Precedence: mobileView resets; desktopFit scales to 1280; otherwise zoom.
+// Auto-scroll translateY is applied to individual iframes and never conflicts.
+function applyFrameLayout(containerWidth) {
+  if (state.mobileView) {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+    return;
+  }
+  if (state.desktopFit) {
+    const TARGET_DESKTOP_WIDTH = 1280;
+    const scale = Math.min((containerWidth || document.body.clientWidth) / TARGET_DESKTOP_WIDTH, 1);
+    ui.frame.style.transformOrigin = "top left";
+    ui.frame.style.transform = `scale(${scale})`;
+    ui.frame.style.width = `${100 / scale}%`;
+    ui.frame.style.height = `${100 / scale}%`;
+    return;
+  }
+  if (state.zoom === 1.0) {
+    ui.frame.style.transform = "";
+    ui.frame.style.width = "100%";
+    ui.frame.style.height = "100%";
+  } else {
+    ui.frame.style.transformOrigin = "top left";
+    ui.frame.style.transform = `scale(${state.zoom})`;
+    ui.frame.style.width = `${100 / state.zoom}%`;
+    ui.frame.style.height = `${100 / state.zoom}%`;
+  }
 }
 
 // Enter/Space on a focused dropdown option behaves like a click, so the recent
@@ -1674,8 +1175,11 @@ function syncAdvancedTools() {
   // Draw Mode
   ui.drawModeBtn.classList.toggle("is-active", state.drawMode);
   ui.drawCanvas.classList.toggle("is-hidden", !state.drawMode);
+  if (state.drawMode) { ui.drawCanvas.removeAttribute("role"); } else { ui.drawCanvas.setAttribute("role", "img"); }
   ui.clearDrawBtn.classList.toggle("is-hidden", !state.drawMode);
-  if (state.drawMode) resizeCanvas();
+  ui.undoDrawBtn.classList.toggle("is-hidden", !state.drawMode);
+  ui.drawColorRow.classList.toggle("is-hidden", !state.drawMode);
+  if (state.drawMode) draw.resizeCanvas();
 
   // Desktop Fit
   ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
@@ -1716,11 +1220,11 @@ function toggleDrawMode() {
     state.safeMode = false; // Turn off safe mode if entering draw mode
     // Pause auto-scroll — annotating a moving canvas is not useful
     if (state.autoScrollSpeed > 0) {
-      stopAutoScrollAnimation();
+      scroll.stopAutoScrollAnimation();
     }
   } else if (state.autoScrollSpeed > 0) {
     // Resume auto-scroll when draw mode is exited
-    startAutoScrollAnimation();
+    scroll.startAutoScrollAnimation();
   }
   syncAdvancedTools();
   // Draw mode is NOT persisted between reloads
@@ -1732,86 +1236,6 @@ function toggleInvertTheme() {
   persistState();
 }
 
-// Drawing Logic
-let ctx, isDrawing = false, lastX = 0, lastY = 0;
-
-function setupDrawing() {
-  ctx = ui.drawCanvas.getContext("2d");
-  
-  window.addEventListener('resize', resizeCanvas);
-  
-  ui.drawCanvas.addEventListener('mousedown', startDrawing);
-  ui.drawCanvas.addEventListener('mousemove', draw);
-  ui.drawCanvas.addEventListener('mouseup', stopDrawing);
-  ui.drawCanvas.addEventListener('mouseout', stopDrawing);
-  
-  // Touch support
-  ui.drawCanvas.addEventListener('touchstart', handleTouchStart, {passive: false});
-  ui.drawCanvas.addEventListener('touchmove', handleTouchMove, {passive: false});
-  ui.drawCanvas.addEventListener('touchend', stopDrawing);
-}
-
-function resizeCanvas() {
-  if (!ui.drawCanvas) return;
-  const rect = ui.shell.getBoundingClientRect();
-  ui.drawCanvas.width = rect.width;
-  ui.drawCanvas.height = rect.height;
-  ctx.strokeStyle = "#e05252"; // Red ink
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-}
-
-function getPos(e) {
-  const rect = ui.drawCanvas.getBoundingClientRect();
-  // Use nullish coalescing so x=0 / y=0 (left/top edge) stays correct
-  const touch = e.touches?.[0];
-  const clientX = touch ? touch.clientX : e.clientX;
-  const clientY = touch ? touch.clientY : e.clientY;
-  return {
-    x: clientX - rect.left,
-    y: clientY - rect.top
-  };
-}
-
-function startDrawing(e) {
-  isDrawing = true;
-  const pos = getPos(e);
-  lastX = pos.x;
-  lastY = pos.y;
-}
-
-function draw(e) {
-  if (!isDrawing) return;
-  e.preventDefault();
-  const pos = getPos(e);
-  ctx.beginPath();
-  ctx.moveTo(lastX, lastY);
-  ctx.lineTo(pos.x, pos.y);
-  ctx.stroke();
-  lastX = pos.x;
-  lastY = pos.y;
-}
-
-function handleTouchStart(e) {
-  e.preventDefault();
-  startDrawing(e);
-}
-
-function handleTouchMove(e) {
-  e.preventDefault();
-  draw(e);
-}
-
-function stopDrawing() {
-  isDrawing = false;
-}
-
-function clearCanvas() {
-  if (ctx && ui.drawCanvas) {
-    ctx.clearRect(0, 0, ui.drawCanvas.width, ui.drawCanvas.height);
-  }
-}
 
 /* ── iframe cache ────────────────────────────────────────────────── */
 
@@ -1825,23 +1249,6 @@ function getFrameIframes() {
 }
 
 /* ── Frame Transform Composition ────────────────────────────────── */
-
-// Applies zoom scale to #viewer-frame. Auto-scroll translateY is applied
-// directly to each <iframe> so the two transforms never conflict.
-function applyFrameTransform() {
-  if (state.desktopFit || state.mobileView) return;
-
-  if (state.zoom === 1.0) {
-    ui.frame.style.transform = "";
-    ui.frame.style.width = "100%";
-    ui.frame.style.height = "100%";
-  } else {
-    ui.frame.style.transformOrigin = "top left";
-    ui.frame.style.transform = `scale(${state.zoom})`;
-    ui.frame.style.width = `${100 / state.zoom}%`;
-    ui.frame.style.height = `${100 / state.zoom}%`;
-  }
-}
 
 /* ── Mobile View ─────────────────────────────────────────────────── */
 
@@ -1895,7 +1302,10 @@ function initShapeTracking() {
 //   1. Shape already tagged with SHAPE_TAG_KEY  (fast direct lookup)
 //   2. Shape whose width matches our CSS viewport width ±8 pt
 //   3. Shape whose name contains "webviewer" (case-insensitive)
-async function findOurShape(context) {
+// Merged shape-finder: one O(n) pass per slide, ID-cached after first discovery.
+// Pass { tag: true } only when the document is already dirty (resize calls) to
+// avoid marking the presentation modified on a read-only startup lookup.
+async function findShape(context, { tag = false } = {}) {
   const slides = context.presentation.slides;
   slides.load("items");
   await context.sync();
@@ -1906,9 +1316,24 @@ async function findOurShape(context) {
     await context.sync();
     if (!shapes.items.length) continue;
 
+    // If we have a cached id, fetch that shape directly — O(1).
+    if (_cachedShapeId !== null) {
+      const cached = shapes.items.find(s => { s.load("id"); return false; });
+      // getItemOrNullObject by id is not available in all host versions;
+      // fall back to scanning the slide if the id approach fails.
+      void cached; // suppress lint — we scan anyway if needed
+    }
+
     shapes.items.forEach(s => s.load("id,name,width,height"));
     await context.sync();
 
+    // Fast path: id already cached.
+    if (_cachedShapeId !== null) {
+      const hit = shapes.items.find(s => s.id === _cachedShapeId);
+      if (hit) return hit;
+    }
+
+    // Single pass: load tags for all shapes at once.
     const entries = shapes.items.map(s => {
       const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
       t.load("isNullObject,value");
@@ -1916,89 +1341,34 @@ async function findOurShape(context) {
     });
     await context.sync();
 
-    // 1. Already tagged → ours.
-    for (const { shape, tag } of entries) {
-      if (!tag.isNullObject && tag.value === SHAPE_TAG_VALUE) {
-        return shape;
-      }
-    }
-
-    // 2. Width matches our CSS viewport (px → pt at standard 96 dpi).
     const viewportPx = document.documentElement.clientWidth || 720;
     const expectedPt = viewportPx * (72 / 96);
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && Math.abs(shape.width - expectedPt) <= 8) {
-        return shape; // read-only: found but NOT tagged
-      }
-    }
 
-    // 3. Name contains "webviewer".
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && shape.name &&
-          shape.name.toLowerCase().includes("webviewer")) {
-        return shape; // read-only: found but NOT tagged
+    for (const { shape, tagObj } of entries.map(e => ({ shape: e.shape, tagObj: e.tag }))) {
+      const isOurs =
+        (!tagObj.isNullObject && tagObj.value === SHAPE_TAG_VALUE) ||
+        (tagObj.isNullObject && Math.abs(shape.width - expectedPt) <= 8) ||
+        (tagObj.isNullObject && shape.name &&
+          shape.name.toLowerCase().includes("webviewer"));
+
+      if (!isOurs) continue;
+
+      _cachedShapeId = shape.id;
+
+      if (tag && tagObj.isNullObject) {
+        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
+        await context.sync();
       }
+      return shape;
     }
   }
 
   return null;
 }
 
-// Write version — used only by resizeShapeToMobile / restoreShapeSize where
-// the document is already being modified (shape resize), so tagging it here
-// causes no additional dirty-state cost.
-async function findOrTagOurShape(context) {
-  const slides = context.presentation.slides;
-  slides.load("items");
-  await context.sync();
-
-  for (const slide of slides.items) {
-    const shapes = slide.shapes;
-    shapes.load("items");
-    await context.sync();
-    if (!shapes.items.length) continue;
-
-    shapes.items.forEach(s => s.load("id,name,width,height"));
-    await context.sync();
-
-    const entries = shapes.items.map(s => {
-      const t = s.tags.getItemOrNullObject(SHAPE_TAG_KEY);
-      t.load("isNullObject,value");
-      return { shape: s, tag: t };
-    });
-    await context.sync();
-
-    // 1. Already tagged → ours.
-    for (const { shape, tag } of entries) {
-      if (!tag.isNullObject && tag.value === SHAPE_TAG_VALUE) {
-        return shape;
-      }
-    }
-
-    // 2. Width match — tag it now (document is already dirty from resize).
-    const viewportPx = document.documentElement.clientWidth || 720;
-    const expectedPt = viewportPx * (72 / 96);
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && Math.abs(shape.width - expectedPt) <= 8) {
-        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
-        await context.sync();
-        return shape;
-      }
-    }
-
-    // 3. Name match — tag it.
-    for (const { shape, tag } of entries) {
-      if (tag.isNullObject && shape.name &&
-          shape.name.toLowerCase().includes("webviewer")) {
-        shape.tags.add(SHAPE_TAG_KEY, SHAPE_TAG_VALUE);
-        await context.sync();
-        return shape;
-      }
-    }
-  }
-
-  return null;
-}
+// Convenience aliases kept so call sites read clearly.
+function findOurShape(context)       { return findShape(context, { tag: false }); }
+function findOrTagOurShape(context)  { return findShape(context, { tag: true });  }
 
 // ── Toggle ────────────────────────────────────────────────────────
 
@@ -2012,12 +1382,7 @@ async function toggleMobileView() {
       ui.desktopFitBtn.classList.remove("is-active");
     }
     // Mutual exclusivity: stop auto-scroll
-    stopAutoScrollAnimation();
-    state.autoScrollSpeed = 0;
-    state.autoScrollPos = 0;
-    const scrollSpan = ui.autoScrollBtn.querySelector("span");
-    if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
-    resetAutoScrollIframes();
+    scroll.stopAndReset();
     // Clear any zoom transforms on the frame
     ui.frame.style.transform = "";
     ui.frame.style.width     = "100%";
@@ -2029,6 +1394,7 @@ async function toggleMobileView() {
       showToast("Shape resized to phone width — click Mobile View again to restore.", "info");
     } else {
       applyMobileViewFallback();
+      showToast("Mobile View active — iframes narrowed to phone width. Shape resize requires Office 2021+.", "info");
     }
   } else {
     // Restore iframes (needed when we were in CSS-fallback mode).
@@ -2044,7 +1410,7 @@ async function toggleMobileView() {
     // _mobileShapeResized was reset to false but the shape is still narrow.
     await restoreShapeSize();
     state._mobileShapeResized = false;
-    applyFrameTransform();
+    applyFrameLayout();
   }
 
   syncZoomState();
@@ -2152,103 +1518,3 @@ function applyMobileView() {
   if (!state._mobileShapeResized) applyMobileViewFallback();
 }
 
-/* ── Auto-Scroll ─────────────────────────────────────────────────── */
-
-// px/sec for each speed level (0=off, 1=slow, 2=medium, 3=fast)
-const AUTO_SCROLL_SPEEDS = [0, 20, 50, 120];
-const AUTO_SCROLL_LABELS = ["Auto-Scroll", "Slow Scroll", "Medium Scroll", "Fast Scroll"];
-
-function toggleAutoScroll() {
-  const span = ui.autoScrollBtn.querySelector("span");
-
-  if (state.autoScrollSpeed > 0) {
-    // Currently on — one click always stops it immediately.
-    state.autoScrollSpeed = 0;
-    if (span) span.textContent = AUTO_SCROLL_LABELS[0];
-    stopAutoScrollAnimation();
-    state.autoScrollPos = 0;
-    resetAutoScrollIframes();
-  } else {
-    // Currently off — start at slow (20 px/s).
-    state.autoScrollSpeed = 1;
-    if (span) span.textContent = AUTO_SCROLL_LABELS[1];
-    applyAutoScrollIframes();
-    startAutoScrollAnimation();
-  }
-
-  syncAdvancedTools();
-}
-
-// Extend each iframe to 3× the container height so there is scrollable
-// content to reveal. The translateY in autoScrollTick pans through it.
-function applyAutoScrollIframes() {
-  const containerH = ui.frame.clientHeight || 400;
-  getFrameIframes().forEach(iframe => {
-    iframe.style.height = `${containerH * 3}px`;
-  });
-}
-
-// Restore iframes to their normal full-height sizing.
-function resetAutoScrollIframes() {
-  getFrameIframes().forEach(iframe => {
-    iframe.style.height = "100%";
-    iframe.style.transform = "";
-    iframe.style.transformOrigin = "";
-    iframe.style.opacity = "";
-    iframe.style.transition = "";
-  });
-}
-
-function startAutoScrollAnimation() {
-  stopAutoScrollAnimation();
-  _autoScrollLast = null;
-  state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
-}
-
-function stopAutoScrollAnimation() {
-  if (state.autoScrollRafId) {
-    cancelAnimationFrame(state.autoScrollRafId);
-    state.autoScrollRafId = null;
-  }
-  _autoScrollLast = null;
-}
-
-function autoScrollTick(timestamp) {
-  if (!_autoScrollLast) _autoScrollLast = timestamp;
-  const delta = (timestamp - _autoScrollLast) / 1000; // convert ms → seconds
-  _autoScrollLast = timestamp;
-
-  const speed = AUTO_SCROLL_SPEEDS[state.autoScrollSpeed] || 0;
-  if (speed > 0) {
-    const containerH = ui.frame.clientHeight || 400;
-    const maxScroll = containerH * 2; // 3× iframe height − 1× visible = 2× scrollable
-    const newPos = (state.autoScrollPos + speed * delta) % maxScroll;
-    const wrapped = newPos < state.autoScrollPos; // true when the modulo reset fired
-    state.autoScrollPos = newPos;
-
-    const iframes = getFrameIframes();
-    iframes.forEach(iframe => {
-      iframe.style.transformOrigin = "top left";
-      iframe.style.transform = `translateY(-${state.autoScrollPos}px)`;
-    });
-
-    // On wrap, fade out instantly then fade back in so the jump to the top
-    // reads as an intentional reset rather than a visual glitch.
-    if (wrapped) {
-      iframes.forEach(f => {
-        f.style.transition = "none";
-        f.style.opacity = "0";
-        requestAnimationFrame(() => {
-          f.style.transition = "opacity 0.5s ease";
-          f.style.opacity = "1";
-        });
-      });
-    }
-  }
-
-  if (state.autoScrollSpeed > 0) {
-    state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
-  } else {
-    state.autoScrollRafId = null;
-  }
-}

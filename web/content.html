@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Webviewer 2.0</title>
-  <link rel="stylesheet" href="./styles.css?v=17">
+  <link rel="stylesheet" href="./styles.css?v=010">
 </head>
 <body>
   <main class="shell" id="shell">
@@ -45,17 +45,19 @@
 
       <div class="divider" role="separator" aria-hidden="true"></div>
 
-      <button class="toolbar-btn" id="zoom-out-btn" type="button" title="Zoom Out" aria-label="Zoom Out">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line>
-        </svg>
-      </button>
-      <button class="toolbar-btn zoom-level-btn" id="zoom-level-btn" type="button" title="Reset zoom to 100%" aria-label="Reset zoom">100%</button>
-      <button class="toolbar-btn" id="zoom-in-btn" type="button" title="Zoom In" aria-label="Zoom In" style="margin-left: 0; border-left: none;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line>
-        </svg>
-      </button>
+      <div class="zoom-container">
+        <button class="toolbar-btn zoom-level-btn" id="zoom-btn" type="button" aria-label="Zoom" aria-expanded="false" aria-haspopup="listbox">100%</button>
+        <div class="recent-dropdown is-hidden" id="zoom-dropdown">
+          <ul id="zoom-list" role="listbox" aria-label="Zoom level">
+            <li class="recent-item" data-pct="50" tabindex="0" role="option">50%</li>
+            <li class="recent-item" data-pct="75" tabindex="0" role="option">75%</li>
+            <li class="recent-item" data-pct="100" tabindex="0" role="option">100%</li>
+            <li class="recent-item" data-pct="125" tabindex="0" role="option">125%</li>
+            <li class="recent-item" data-pct="150" tabindex="0" role="option">150%</li>
+            <li class="recent-item" data-pct="200" tabindex="0" role="option">200%</li>
+          </ul>
+        </div>
+      </div>
 
       <div class="divider" role="separator" aria-hidden="true"></div>
 
@@ -84,36 +86,46 @@
           </svg>
         </button>
         <div class="more-dropdown is-hidden" id="more-dropdown" role="menu">
-          <button class="more-item" id="desktop-fit-btn" type="button">
+          <button class="more-item" id="desktop-fit-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
             <span>Desktop View</span>
           </button>
-          <button class="more-item" id="safe-mode-btn" type="button">
+          <button class="more-item" id="safe-mode-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             <span>Presentation Lock</span>
           </button>
-          <button class="more-item" id="draw-mode-btn" type="button" title="Annotations are not saved between sessions">
+          <button class="more-item" id="draw-mode-btn" type="button" role="menuitem" title="Annotations are not saved between sessions">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
             <span>Draw Mode</span>
           </button>
-          <button class="more-item is-hidden" id="clear-draw-btn" type="button">
+          <button class="more-item is-hidden" id="clear-draw-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             <span>Clear Drawing</span>
           </button>
-          <button class="more-item" id="invert-btn" type="button">
+          <button class="more-item is-hidden" id="undo-draw-btn" type="button" role="menuitem">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+            <span>Undo Stroke</span>
+          </button>
+          <div class="more-item draw-colors is-hidden" id="draw-color-row" role="group" aria-label="Ink color">
+            <button class="draw-swatch is-active" data-color="#e05252" title="Red" aria-label="Red ink" style="background:#e05252"></button>
+            <button class="draw-swatch" data-color="#f7c948" title="Yellow" aria-label="Yellow ink" style="background:#f7c948"></button>
+            <button class="draw-swatch" data-color="#4caf50" title="Green" aria-label="Green ink" style="background:#4caf50"></button>
+            <button class="draw-swatch" data-color="#ffffff" title="White" aria-label="White ink" style="background:#ffffff;border:1px solid #aaa"></button>
+          </div>
+          <button class="more-item" id="invert-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18"/><path fill="currentColor" stroke="none" d="M12 3a9 9 0 0 0 0 18z"/></svg>
             <span>Invert Colors</span>
           </button>
-          <button class="more-item" id="theme-btn" type="button">
+          <button class="more-item" id="theme-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             <span>Dark Toolbar</span>
           </button>
           <div class="more-separator" role="separator" aria-hidden="true"></div>
-          <button class="more-item" id="mobile-view-btn" type="button">
+          <button class="more-item" id="mobile-view-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
             <span>Mobile View</span>
           </button>
-          <button class="more-item" id="auto-scroll-btn" type="button">
+          <button class="more-item" id="auto-scroll-btn" type="button" role="menuitem">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 7 12 12 17 7"></polyline><polyline points="7 13 12 18 17 13"></polyline></svg>
             <span>Auto-Scroll</span>
           </button>
@@ -127,7 +139,7 @@
       </button>
     </div>
 
-    <div class="toast is-hidden" id="toast" role="alert" aria-live="polite" aria-atomic="true"></div>
+    <div class="toast overlay-hidden" id="toast" role="alert" aria-live="polite" aria-atomic="true"></div>
 
     <button class="floating-toggle" id="floating-toggle" type="button" title="Show toolbar" aria-label="Show toolbar">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -154,7 +166,7 @@
       </div>
     </div>
 
-    <div class="block-overlay is-hidden" id="block-overlay">
+    <div class="block-overlay overlay-hidden" id="block-overlay" role="dialog" aria-modal="true" aria-labelledby="block-title">
       <div class="block-card">
         <svg class="block-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
           <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2.5"/>
@@ -177,9 +189,9 @@
       </div>
     </div>
 
-    <div class="qr-overlay is-hidden" id="qr-overlay">
+    <div class="qr-overlay overlay-hidden" id="qr-overlay" role="dialog" aria-modal="true" aria-labelledby="qr-heading">
       <div class="block-card qr-card">
-        <h2>Scan this link</h2>
+        <h2 id="qr-heading">Scan this link</h2>
         <canvas id="qr-canvas" role="img" aria-label="QR code for current URL"></canvas>
         <div class="block-actions">
           <button class="block-btn" id="qr-close-btn" type="button">Close</button>
@@ -188,12 +200,12 @@
     </div>
 
     <div class="safe-mode-overlay is-hidden" id="safe-mode-overlay"></div>
-    <canvas class="draw-canvas is-hidden" id="draw-canvas"></canvas>
+    <canvas class="draw-canvas is-hidden" id="draw-canvas" aria-label="Drawing canvas" role="img"></canvas>
     <div id="viewer-frame" class="grid-container"></div>
   </main>
 
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="./qrious.min.js"></script>
-  <script type="module" src="./app.js?v=17"></script>
+  <script type="module" src="./app.js?v=010"></script>
 </body>
 </html>

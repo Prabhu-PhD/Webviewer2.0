@@ -23,7 +23,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check
+        run: node --check web/app.js && node --check web/adapters.js && node --check web/scroll.js && node --check web/draw.js && node --check scripts/serve.mjs && node --check scripts/stamp-version.mjs
+
+      - name: Lint
+        run: npx --yes @biomejs/biome@1.9.4 lint --diagnostic-level=error web/ scripts/ test/
+
+      - name: Unit tests
+        run: node --test "test/**/*.test.js"
+
+      - name: Stamp version
+        run: node scripts/stamp-version.mjs
+
       - name: Prepare build directory
         run: |
           mkdir build
