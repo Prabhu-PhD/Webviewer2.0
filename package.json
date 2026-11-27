@@ -9,7 +9,7 @@
   },
   "scripts": {
     "cert:dev": "powershell -ExecutionPolicy Bypass -File scripts/new-dev-cert.ps1",
-    "check": "node --check web/app.js && node --check web/adapters.js && node --check scripts/serve.mjs",
+    "check": "node --check web/app.js && node --check web/adapters.js && node --check web/scroll.js && node --check web/draw.js && node --check scripts/serve.mjs",
     "test": "node --test \"test/**/*.test.js\"",
     "doctor": "powershell -ExecutionPolicy Bypass -File scripts/dev-doctor.ps1",
     "serve": "node scripts/serve.mjs",

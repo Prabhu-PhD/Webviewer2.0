@@ -1,4 +1,6 @@
 import { KNOWN_BLOCKED_DOMAINS, isKnownBlockedDomain, adaptProviderUrl, joinNotes } from './adapters.js';
+import { createScrollController } from './scroll.js';
+import { createDrawController } from './draw.js';
 
 const STORAGE_KEYS = {
   chromeVisible: "webviewer2.chromeVisible",
@@ -50,7 +52,8 @@ const state = {
   _lastSavedRefreshInterval: undefined  // last refreshInterval written to document settings
 };
 
-let _autoScrollLast = null; // rAF timestamp tracking
+let scroll;                 // scroll controller (createScrollController)
+let draw;                   // draw controller (createDrawController)
 let _iframeCache = [];      // cached NodeList snapshot, invalidated on each loadIntoFrame
 
 const ui = {};
@@ -60,6 +63,8 @@ document.addEventListener("DOMContentLoaded", initialize);
 
 function initialize() {
   cacheUi();
+  scroll = createScrollController(state, ui, { getFrameIframes, syncAdvancedTools });
+  draw = createDrawController(ui);
   bindEvents();
   hydrateFromBrowserStorage();
 
@@ -135,13 +140,13 @@ function bindEvents() {
   ui.desktopFitBtn.addEventListener("click", toggleDesktopFit);
   ui.safeModeBtn.addEventListener("click", toggleSafeMode);
   ui.drawModeBtn.addEventListener("click", toggleDrawMode);
-  ui.clearDrawBtn.addEventListener("click", clearCanvas);
+  ui.clearDrawBtn.addEventListener("click", draw.clearCanvas);
   ui.invertBtn.addEventListener("click", toggleInvertTheme);
   ui.mobileViewBtn.addEventListener("click", toggleMobileView);
-  ui.autoScrollBtn.addEventListener("click", toggleAutoScroll);
+  ui.autoScrollBtn.addEventListener("click", scroll.toggleAutoScroll);
 
   // Set up drawing canvas
-  setupDrawing();
+  draw.setupDrawing();
 
   // Re-apply view transforms on resize; also resize draw canvas when active
   window.addEventListener("resize", () => {
@@ -150,7 +155,7 @@ function bindEvents() {
     } else if (state.mobileView) {
       applyMobileView();
     }
-    if (state.drawMode) resizeCanvas();
+    if (state.drawMode) draw.resizeCanvas();
   });
 
   ui.popoutBtn.addEventListener("click", openCurrentUrl);
@@ -436,7 +441,7 @@ function loadIntoFrame(rawInput, options = {}) {
   if (state.mobileView) {
     requestAnimationFrame(() => applyMobileView());
   } else if (state.autoScrollSpeed > 0) {
-    applyAutoScrollIframes();
+    scroll.applyAutoScrollIframes();
   }
 
   if (state.pendingLoads > 0) {
@@ -574,7 +579,7 @@ function syncActiveView() {
       state.chromeVisible = false;
       syncChromeState(); // adds is-chrome-hidden → floating toggle appears
 
-      clearCanvas();
+      draw.clearCanvas();
       hideBlockOverlay();
       // Intentionally no forceRefresh() — the loaded webpage must persist
       // unchanged across edit ↔ slideshow transitions.
@@ -616,7 +621,7 @@ function forceRefresh() {
     if (state.mobileView) {
       requestAnimationFrame(() => applyMobileView());
     } else if (state.autoScrollSpeed > 0) {
-      applyAutoScrollIframes();
+      scroll.applyAutoScrollIframes();
     }
   }
 }
@@ -1018,12 +1023,7 @@ function toggleDesktopFit() {
       });
     }
     // Stop any active auto-scroll
-    stopAutoScrollAnimation();
-    state.autoScrollSpeed = 0;
-    state.autoScrollPos = 0;
-    const scrollSpan = ui.autoScrollBtn.querySelector("span");
-    if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
-    resetAutoScrollIframes();
+    scroll.stopAndReset();
     applyDesktopFitScale(document.body.clientWidth);
   } else {
     ui.frame.style.transform = "";
@@ -1125,7 +1125,7 @@ function syncAdvancedTools() {
   ui.drawModeBtn.classList.toggle("is-active", state.drawMode);
   ui.drawCanvas.classList.toggle("is-hidden", !state.drawMode);
   ui.clearDrawBtn.classList.toggle("is-hidden", !state.drawMode);
-  if (state.drawMode) resizeCanvas();
+  if (state.drawMode) draw.resizeCanvas();
 
   // Desktop Fit
   ui.desktopFitBtn.classList.toggle("is-active", state.desktopFit);
@@ -1166,11 +1166,11 @@ function toggleDrawMode() {
     state.safeMode = false; // Turn off safe mode if entering draw mode
     // Pause auto-scroll — annotating a moving canvas is not useful
     if (state.autoScrollSpeed > 0) {
-      stopAutoScrollAnimation();
+      scroll.stopAutoScrollAnimation();
     }
   } else if (state.autoScrollSpeed > 0) {
     // Resume auto-scroll when draw mode is exited
-    startAutoScrollAnimation();
+    scroll.startAutoScrollAnimation();
   }
   syncAdvancedTools();
   // Draw mode is NOT persisted between reloads
@@ -1182,84 +1182,6 @@ function toggleInvertTheme() {
   persistState();
 }
 
-// Drawing Logic
-let ctx, isDrawing = false, lastX = 0, lastY = 0;
-
-function setupDrawing() {
-  ctx = ui.drawCanvas.getContext("2d");
-
-  ui.drawCanvas.addEventListener('mousedown', startDrawing);
-  ui.drawCanvas.addEventListener('mousemove', draw);
-  ui.drawCanvas.addEventListener('mouseup', stopDrawing);
-  ui.drawCanvas.addEventListener('mouseout', stopDrawing);
-  
-  // Touch support
-  ui.drawCanvas.addEventListener('touchstart', handleTouchStart, {passive: false});
-  ui.drawCanvas.addEventListener('touchmove', handleTouchMove, {passive: false});
-  ui.drawCanvas.addEventListener('touchend', stopDrawing);
-}
-
-function resizeCanvas() {
-  if (!ui.drawCanvas) return;
-  const rect = ui.shell.getBoundingClientRect();
-  ui.drawCanvas.width = rect.width;
-  ui.drawCanvas.height = rect.height;
-  ctx.strokeStyle = "#e05252"; // Red ink
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-}
-
-function getPos(e) {
-  const rect = ui.drawCanvas.getBoundingClientRect();
-  // Use nullish coalescing so x=0 / y=0 (left/top edge) stays correct
-  const touch = e.touches?.[0];
-  const clientX = touch ? touch.clientX : e.clientX;
-  const clientY = touch ? touch.clientY : e.clientY;
-  return {
-    x: clientX - rect.left,
-    y: clientY - rect.top
-  };
-}
-
-function startDrawing(e) {
-  isDrawing = true;
-  const pos = getPos(e);
-  lastX = pos.x;
-  lastY = pos.y;
-}
-
-function draw(e) {
-  if (!isDrawing) return;
-  e.preventDefault();
-  const pos = getPos(e);
-  ctx.beginPath();
-  ctx.moveTo(lastX, lastY);
-  ctx.lineTo(pos.x, pos.y);
-  ctx.stroke();
-  lastX = pos.x;
-  lastY = pos.y;
-}
-
-function handleTouchStart(e) {
-  e.preventDefault();
-  startDrawing(e);
-}
-
-function handleTouchMove(e) {
-  e.preventDefault();
-  draw(e);
-}
-
-function stopDrawing() {
-  isDrawing = false;
-}
-
-function clearCanvas() {
-  if (ctx && ui.drawCanvas) {
-    ctx.clearRect(0, 0, ui.drawCanvas.width, ui.drawCanvas.height);
-  }
-}
 
 /* ── iframe cache ────────────────────────────────────────────────── */
 
@@ -1460,12 +1382,7 @@ async function toggleMobileView() {
       ui.desktopFitBtn.classList.remove("is-active");
     }
     // Mutual exclusivity: stop auto-scroll
-    stopAutoScrollAnimation();
-    state.autoScrollSpeed = 0;
-    state.autoScrollPos = 0;
-    const scrollSpan = ui.autoScrollBtn.querySelector("span");
-    if (scrollSpan) scrollSpan.textContent = AUTO_SCROLL_LABELS[0];
-    resetAutoScrollIframes();
+    scroll.stopAndReset();
     // Clear any zoom transforms on the frame
     ui.frame.style.transform = "";
     ui.frame.style.width     = "100%";
@@ -1601,103 +1518,3 @@ function applyMobileView() {
   if (!state._mobileShapeResized) applyMobileViewFallback();
 }
 
-/* ── Auto-Scroll ─────────────────────────────────────────────────── */
-
-// px/sec for each speed level (0=off, 1=slow, 2=medium, 3=fast)
-const AUTO_SCROLL_SPEEDS = [0, 20, 50, 120];
-const AUTO_SCROLL_LABELS = ["Auto-Scroll", "Slow Scroll", "Medium Scroll", "Fast Scroll"];
-
-function toggleAutoScroll() {
-  const span = ui.autoScrollBtn.querySelector("span");
-
-  if (state.autoScrollSpeed > 0) {
-    // Currently on — one click always stops it immediately.
-    state.autoScrollSpeed = 0;
-    if (span) span.textContent = AUTO_SCROLL_LABELS[0];
-    stopAutoScrollAnimation();
-    state.autoScrollPos = 0;
-    resetAutoScrollIframes();
-  } else {
-    // Currently off — start at slow (20 px/s).
-    state.autoScrollSpeed = 1;
-    if (span) span.textContent = AUTO_SCROLL_LABELS[1];
-    applyAutoScrollIframes();
-    startAutoScrollAnimation();
-  }
-
-  syncAdvancedTools();
-}
-
-// Extend each iframe to 3× the container height so there is scrollable
-// content to reveal. The translateY in autoScrollTick pans through it.
-function applyAutoScrollIframes() {
-  const containerH = ui.frame.clientHeight || 400;
-  getFrameIframes().forEach(iframe => {
-    iframe.style.height = `${containerH * 3}px`;
-  });
-}
-
-// Restore iframes to their normal full-height sizing.
-function resetAutoScrollIframes() {
-  getFrameIframes().forEach(iframe => {
-    iframe.style.height = "100%";
-    iframe.style.transform = "";
-    iframe.style.transformOrigin = "";
-    iframe.style.opacity = "";
-    iframe.style.transition = "";
-  });
-}
-
-function startAutoScrollAnimation() {
-  stopAutoScrollAnimation();
-  _autoScrollLast = null;
-  state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
-}
-
-function stopAutoScrollAnimation() {
-  if (state.autoScrollRafId) {
-    cancelAnimationFrame(state.autoScrollRafId);
-    state.autoScrollRafId = null;
-  }
-  _autoScrollLast = null;
-}
-
-function autoScrollTick(timestamp) {
-  if (!_autoScrollLast) _autoScrollLast = timestamp;
-  const delta = (timestamp - _autoScrollLast) / 1000; // convert ms → seconds
-  _autoScrollLast = timestamp;
-
-  const speed = AUTO_SCROLL_SPEEDS[state.autoScrollSpeed] || 0;
-  if (speed > 0) {
-    const containerH = ui.frame.clientHeight || 400;
-    const maxScroll = containerH * 2; // 3× iframe height − 1× visible = 2× scrollable
-    const newPos = (state.autoScrollPos + speed * delta) % maxScroll;
-    const wrapped = newPos < state.autoScrollPos; // true when the modulo reset fired
-    state.autoScrollPos = newPos;
-
-    const iframes = getFrameIframes();
-    iframes.forEach(iframe => {
-      iframe.style.transformOrigin = "top left";
-      iframe.style.transform = `translateY(-${state.autoScrollPos}px)`;
-    });
-
-    // On wrap, fade out instantly then fade back in so the jump to the top
-    // reads as an intentional reset rather than a visual glitch.
-    if (wrapped) {
-      iframes.forEach(f => {
-        f.style.transition = "none";
-        f.style.opacity = "0";
-        requestAnimationFrame(() => {
-          f.style.transition = "opacity 0.5s ease";
-          f.style.opacity = "1";
-        });
-      });
-    }
-  }
-
-  if (state.autoScrollSpeed > 0) {
-    state.autoScrollRafId = requestAnimationFrame(autoScrollTick);
-  } else {
-    state.autoScrollRafId = null;
-  }
-}

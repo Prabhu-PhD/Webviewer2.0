@@ -30,7 +30,7 @@ jobs:
           node-version: '20'
 
       - name: Syntax check
-        run: node --check web/app.js && node --check web/adapters.js && node --check scripts/serve.mjs
+        run: node --check web/app.js && node --check web/adapters.js && node --check web/scroll.js && node --check web/draw.js && node --check scripts/serve.mjs
 
       - name: Unit tests
         run: node --test "test/**/*.test.js"
