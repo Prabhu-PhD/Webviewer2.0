@@ -154,7 +154,7 @@ function bindEvents() {
   ui.drawColorRow.addEventListener("click", (e) => {
     const swatch = e.target.closest(".draw-swatch");
     if (!swatch) return;
-    ui.drawColorRow.querySelectorAll(".draw-swatch").forEach(s => s.classList.remove("is-active"));
+    for (const s of ui.drawColorRow.querySelectorAll(".draw-swatch")) s.classList.remove("is-active");
     swatch.classList.add("is-active");
     draw.setColor(swatch.dataset.color);
   });
@@ -411,7 +411,7 @@ function loadIntoFrame(rawInput, options = {}) {
   state.pendingLoads = 0;
   state.isLoading = false;
 
-  urlStrings.forEach(urlString => {
+  for (const urlString of urlStrings) {
     let request;
     try {
       request = prepareEmbedRequest(urlString);
@@ -420,7 +420,7 @@ function loadIntoFrame(rawInput, options = {}) {
         throw e;
       }
       hasErrors = true;
-      return;
+      continue;
     }
 
     if (isKnownBlockedDomain(request.hostname)) {
@@ -428,7 +428,7 @@ function loadIntoFrame(rawInput, options = {}) {
         showBlockOverlay();
       }
       hasErrors = true;
-      return;
+      continue;
     }
 
     const iframe = document.createElement("iframe");
@@ -450,7 +450,7 @@ function loadIntoFrame(rawInput, options = {}) {
     if (!silent && request.note && urlStrings.length === 1) {
       showToast(request.note, "info");
     }
-  });
+  }
 
   if (hasErrors && urlStrings.length > 1) {
     showToast("One or more links could not be loaded.", "warning");
@@ -619,17 +619,17 @@ function syncActiveView() {
 function forceRefresh() {
   _iframeCache = []; // iframes are being replaced; force a fresh query
   const iframes = Array.from(ui.frame.querySelectorAll("iframe"));
-  iframes.forEach(iframe => {
+  for (const iframe of iframes) {
     const newIframe = document.createElement("iframe");
     newIframe.src = iframe.src;
     newIframe.allow = iframe.allow;
     newIframe.referrerPolicy = iframe.referrerPolicy;
     newIframe.style.cssText = iframe.style.cssText;
     newIframe.addEventListener("load", handleFrameLoaded);
-    
+
     // Replace cleanly to avoid about:blank crashes
     iframe.replaceWith(newIframe);
-  });
+  }
 
   if (iframes.length > 0) {
     state.pendingLoads = iframes.length;
@@ -837,13 +837,13 @@ function getResolvedUrls() {
     return [];
   }
   const urls = [];
-  splitUrls(raw).forEach((segment) => {
+  for (const segment of splitUrls(raw)) {
     try {
       urls.push(prepareEmbedRequest(segment).normalizedUrl);
     } catch (e) {
       // Skip segments that can't be normalized into an embeddable URL.
     }
-  });
+  }
   return urls;
 }
 
@@ -940,7 +940,7 @@ function renderRecentUrls() {
     return;
   }
   
-  state.recentUrls.forEach(url => {
+  for (const url of state.recentUrls) {
     const li = document.createElement("li");
     li.className = "recent-item";
     try {
@@ -958,7 +958,7 @@ function renderRecentUrls() {
       ui.loadForm.dispatchEvent(new Event("submit", { cancelable: true }));
     });
     ui.recentList.appendChild(li);
-  });
+  }
 }
 
 function showRecentDropdown() {
@@ -1015,9 +1015,9 @@ function handleZoomOptionClick(e) {
 function syncZoomMenuState() {
   if (!ui.zoomList) return;
   const currentPct = Math.round(state.zoom * 100);
-  ui.zoomList.querySelectorAll("li[data-pct]").forEach((li) => {
+  for (const li of ui.zoomList.querySelectorAll("li[data-pct]")) {
     li.setAttribute("aria-selected", String(Number(li.dataset.pct) === currentPct));
-  });
+  }
 }
 
 function syncZoomState() {
@@ -1046,12 +1046,12 @@ function toggleDesktopFit() {
     if (state.mobileView) {
       state.mobileView = false;
       ui.mobileViewBtn.classList.remove("is-active");
-      getFrameIframes().forEach(f => {
+      for (const f of getFrameIframes()) {
         f.style.width = "100%";
         f.style.height = "100%";
         f.style.transform = "";
         f.style.transformOrigin = "";
-      });
+      }
     }
     // Stop any active auto-scroll
     scroll.stopAndReset();
@@ -1121,8 +1121,8 @@ function handleRefreshOptionClick(e) {
     return;
   }
 
-  const val = parseInt(li.dataset.val, 10);
-  if (isNaN(val)) return;
+  const val = Number.parseInt(li.dataset.val, 10);
+  if (Number.isNaN(val)) return;
 
   state.refreshInterval = val;
   applyRefreshInterval();
@@ -1154,14 +1154,14 @@ function applyRefreshInterval() {
 // which cadence is active (the "Reload now" action is never the active state).
 function syncRefreshMenuState() {
   if (!ui.refreshList) return;
-  ui.refreshList.querySelectorAll("li.recent-item[data-val]").forEach((li) => {
+  for (const li of ui.refreshList.querySelectorAll("li.recent-item[data-val]")) {
     if (li.dataset.val === "reload") {
       li.removeAttribute("aria-selected");
-      return;
+      continue;
     }
-    const isActive = parseInt(li.dataset.val, 10) === state.refreshInterval;
+    const isActive = Number.parseInt(li.dataset.val, 10) === state.refreshInterval;
     li.setAttribute("aria-selected", String(isActive));
-  });
+  }
 }
 
 
@@ -1324,7 +1324,7 @@ async function findShape(context, { tag = false } = {}) {
       void cached; // suppress lint — we scan anyway if needed
     }
 
-    shapes.items.forEach(s => s.load("id,name,width,height"));
+    for (const s of shapes.items) s.load("id,name,width,height");
     await context.sync();
 
     // Fast path: id already cached.
@@ -1398,13 +1398,13 @@ async function toggleMobileView() {
     }
   } else {
     // Restore iframes (needed when we were in CSS-fallback mode).
-    getFrameIframes().forEach(f => {
+    for (const f of getFrameIframes()) {
       f.style.width           = "100%";
       f.style.height          = "100%";
       f.style.transform       = "";
       f.style.transformOrigin = "";
       f.style.justifySelf     = "";
-    });
+    }
 
     // Always attempt shape restore — handles restarts where
     // _mobileShapeResized was reset to false but the shape is still narrow.
@@ -1500,13 +1500,13 @@ function applyMobileViewFallback() {
   const paneW        = hasCols ? containerW / 2 : containerW;
   const w            = Math.min(MOBILE_WIDTH, paneW);
 
-  iframes.forEach(iframe => {
+  for (const iframe of iframes) {
     iframe.style.width           = `${w}px`;
     iframe.style.height          = "100%";
     iframe.style.transform       = "";
     iframe.style.transformOrigin = "";
     iframe.style.justifySelf     = "center";
-  });
+  }
 }
 
 // Called by the resize-event handler and loadIntoFrame.
