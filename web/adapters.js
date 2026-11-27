@@ -370,7 +370,7 @@ function adaptMiroUrl(url) {
 
 function adaptCanvaUrl(url) {
   if (url.pathname.startsWith("/design/")) {
-    let embedUrl = new URL(url.toString());
+    const embedUrl = new URL(url.toString());
 
     if (url.pathname.endsWith("/edit") || url.pathname.endsWith("/watch")) {
       embedUrl.pathname = url.pathname.replace(/\/(edit|watch)$/, "/view");
@@ -390,7 +390,7 @@ function adaptCanvaUrl(url) {
 
 function adaptAirtableUrl(url) {
   const pathParts = url.pathname.split("/").filter(Boolean);
-  if (pathParts[0] && pathParts[0].startsWith("shr")) {
+  if (pathParts[0]?.startsWith("shr")) {
     const embedUrl = new URL(`https://airtable.com/embed/${pathParts[0]}`);
     embedUrl.search = url.search;
     return {
@@ -469,7 +469,7 @@ function adaptLookerStudioUrl(url) {
   // To:   /embed/reporting/ID/page/P_ID
   if (url.pathname.startsWith("/reporting/") && !url.pathname.startsWith("/embed/")) {
     const embedUrl = new URL(url.toString());
-    embedUrl.pathname = "/embed" + url.pathname;
+    embedUrl.pathname = `/embed${url.pathname}`;
     return {
       note: "Converted to Looker Studio embed.",
       providerName: "Looker Studio",
@@ -535,11 +535,11 @@ function adaptOpenStreetMapUrl(url) {
   // A standard OSM URL carries the view in the hash: #map=ZOOM/LAT/LNG
   const match = url.hash.match(/map=(\d+(?:\.\d+)?)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/);
   if (match) {
-    const zoom = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
-    const lng = parseFloat(match[3]);
+    const zoom = Number.parseFloat(match[1]);
+    const lat = Number.parseFloat(match[2]);
+    const lng = Number.parseFloat(match[3]);
     // Approximate a bounding box around the centre; span shrinks as zoom grows.
-    const lonSpan = 360 / Math.pow(2, zoom);
+    const lonSpan = 360 / 2 ** zoom;
     const latSpan = lonSpan / 2;
     const bbox = [
       (lng - lonSpan).toFixed(5),

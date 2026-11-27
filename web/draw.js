@@ -1,6 +1,8 @@
 export function createDrawController(ui) {
-  let ctx, isDrawing = false;
-  let lastX = 0, lastY = 0;
+  let ctx;
+  let isDrawing = false;
+  let lastX = 0;
+  let lastY = 0;
   let currentColor = "#e05252";
   let strokes = [];        // [ { color, points: [{x,y}] }, ... ]
   let currentStroke = null;
