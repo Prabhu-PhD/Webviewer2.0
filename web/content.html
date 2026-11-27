@@ -45,17 +45,19 @@
 
       <div class="divider" role="separator" aria-hidden="true"></div>
 
-      <button class="toolbar-btn" id="zoom-out-btn" type="button" title="Zoom Out" aria-label="Zoom Out">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line>
-        </svg>
-      </button>
-      <button class="toolbar-btn zoom-level-btn" id="zoom-level-btn" type="button" title="Reset zoom to 100%" aria-label="Reset zoom">100%</button>
-      <button class="toolbar-btn" id="zoom-in-btn" type="button" title="Zoom In" aria-label="Zoom In" style="margin-left: 0; border-left: none;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line>
-        </svg>
-      </button>
+      <div class="zoom-container">
+        <button class="toolbar-btn zoom-level-btn" id="zoom-btn" type="button" aria-label="Zoom" aria-expanded="false" aria-haspopup="listbox">100%</button>
+        <div class="recent-dropdown is-hidden" id="zoom-dropdown">
+          <ul id="zoom-list" role="listbox" aria-label="Zoom level">
+            <li class="recent-item" data-pct="50" tabindex="0" role="option">50%</li>
+            <li class="recent-item" data-pct="75" tabindex="0" role="option">75%</li>
+            <li class="recent-item" data-pct="100" tabindex="0" role="option">100%</li>
+            <li class="recent-item" data-pct="125" tabindex="0" role="option">125%</li>
+            <li class="recent-item" data-pct="150" tabindex="0" role="option">150%</li>
+            <li class="recent-item" data-pct="200" tabindex="0" role="option">200%</li>
+          </ul>
+        </div>
+      </div>
 
       <div class="divider" role="separator" aria-hidden="true"></div>
 
@@ -137,7 +139,7 @@
       </button>
     </div>
 
-    <div class="toast is-hidden" id="toast" role="alert" aria-live="polite" aria-atomic="true"></div>
+    <div class="toast overlay-hidden" id="toast" role="alert" aria-live="polite" aria-atomic="true"></div>
 
     <button class="floating-toggle" id="floating-toggle" type="button" title="Show toolbar" aria-label="Show toolbar">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -164,7 +166,7 @@
       </div>
     </div>
 
-    <div class="block-overlay is-hidden" id="block-overlay" role="dialog" aria-modal="true" aria-labelledby="block-title">
+    <div class="block-overlay overlay-hidden" id="block-overlay" role="dialog" aria-modal="true" aria-labelledby="block-title">
       <div class="block-card">
         <svg class="block-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
           <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2.5"/>
@@ -187,7 +189,7 @@
       </div>
     </div>
 
-    <div class="qr-overlay is-hidden" id="qr-overlay" role="dialog" aria-modal="true" aria-labelledby="qr-heading">
+    <div class="qr-overlay overlay-hidden" id="qr-overlay" role="dialog" aria-modal="true" aria-labelledby="qr-heading">
       <div class="block-card qr-card">
         <h2 id="qr-heading">Scan this link</h2>
         <canvas id="qr-canvas" role="img" aria-label="QR code for current URL"></canvas>
@@ -198,7 +200,7 @@
     </div>
 
     <div class="safe-mode-overlay is-hidden" id="safe-mode-overlay"></div>
-    <canvas class="draw-canvas is-hidden" id="draw-canvas"></canvas>
+    <canvas class="draw-canvas is-hidden" id="draw-canvas" aria-label="Drawing canvas" role="img"></canvas>
     <div id="viewer-frame" class="grid-container"></div>
   </main>
 

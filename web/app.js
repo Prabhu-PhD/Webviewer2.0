@@ -98,9 +98,9 @@ function cacheUi() {
   ui.refreshBtn = document.getElementById("refresh-btn");
   ui.refreshDropdown = document.getElementById("refresh-dropdown");
   ui.refreshList = document.getElementById("refresh-list");
-  ui.zoomInBtn = document.getElementById("zoom-in-btn");
-  ui.zoomOutBtn = document.getElementById("zoom-out-btn");
-  ui.zoomLevelBtn = document.getElementById("zoom-level-btn");
+  ui.zoomBtn = document.getElementById("zoom-btn");
+  ui.zoomDropdown = document.getElementById("zoom-dropdown");
+  ui.zoomList = document.getElementById("zoom-list");
   ui.desktopFitBtn = document.getElementById("desktop-fit-btn");
   ui.safeModeBtn = document.getElementById("safe-mode-btn");
   ui.drawModeBtn = document.getElementById("draw-mode-btn");
@@ -133,9 +133,15 @@ function bindEvents() {
   document.addEventListener("click", handleDocumentClick);
 
   ui.themeBtn.addEventListener("click", toggleTheme);
-  ui.zoomInBtn.addEventListener("click", zoomIn);
-  ui.zoomOutBtn.addEventListener("click", zoomOut);
-  ui.zoomLevelBtn.addEventListener("click", resetZoom);
+  ui.zoomBtn.addEventListener("click", () => {
+    const open = ui.zoomDropdown.classList.toggle("is-hidden") === false;
+    ui.zoomBtn.setAttribute("aria-expanded", String(open));
+    if (open) syncZoomMenuState();
+  });
+  ui.zoomList.addEventListener("click", handleZoomOptionClick);
+  ui.zoomList.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleZoomOptionClick(e); }
+  });
   ui.moreBtn.addEventListener("click", () => {
     const open = ui.moreDropdown.classList.toggle("is-hidden") === false;
     ui.moreBtn.setAttribute("aria-expanded", String(open));
@@ -185,10 +191,12 @@ function bindEvents() {
     ui.recentDropdown.classList.add("is-hidden");
     ui.refreshDropdown.classList.add("is-hidden");
     ui.refreshBtn.setAttribute("aria-expanded", "false");
+    ui.zoomDropdown.classList.add("is-hidden");
+    ui.zoomBtn.setAttribute("aria-expanded", "false");
     ui.moreDropdown.classList.add("is-hidden");
     ui.moreBtn.setAttribute("aria-expanded", "false");
-    if (!ui.qrOverlay.classList.contains("is-hidden")) hideQrCode();
-    if (!ui.blockOverlay.classList.contains("is-hidden")) dismissBlockOverlay();
+    if (!ui.qrOverlay.classList.contains("overlay-hidden")) hideQrCode();
+    if (!ui.blockOverlay.classList.contains("overlay-hidden")) dismissBlockOverlay();
   });
 
   // Focus trap for block overlay (2 buttons: cycle Tab between them)
@@ -369,11 +377,11 @@ function loadIntoFrame(rawInput, options = {}) {
   state.autoScrollPos = 0;
 
   if (!inputUrlString) {
-    ui.emptyState.classList.remove("is-hidden");
+    ui.emptyState.classList.remove("overlay-hidden");
     return;
   }
-  
-  ui.emptyState.classList.add("is-hidden");
+
+  ui.emptyState.classList.add("overlay-hidden");
 
   // Split into up to 4 URLs for split-screen — but only when the commas
   // genuinely separate distinct URLs (see splitUrls). A single URL that
@@ -501,12 +509,12 @@ function handleLoadTimeout() {
 }
 
 function showBlockOverlay() {
-  ui.blockOverlay.classList.remove("is-hidden");
+  ui.blockOverlay.classList.remove("overlay-hidden");
   ui.blockOpenBtn.focus();
 }
 
 function hideBlockOverlay() {
-  ui.blockOverlay.classList.add("is-hidden");
+  ui.blockOverlay.classList.add("overlay-hidden");
 }
 
 function dismissBlockOverlay() {
@@ -520,7 +528,7 @@ function dismissBlockOverlay() {
   clearTimeout(state.loadTimer);
   ui.frame.innerHTML = "";
   ui.frame.dataset.count = 0;
-  ui.emptyState.classList.remove("is-hidden");
+  ui.emptyState.classList.remove("overlay-hidden");
   syncEmptyState();
   persistState();
 }
@@ -844,7 +852,7 @@ function getResolvedUrls() {
 function showToast(message, type = "info", duration = 4000) {
   ui.toast.textContent = message;
   ui.toast.dataset.type = type;
-  ui.toast.classList.remove("is-hidden");
+  ui.toast.classList.remove("overlay-hidden");
 
   clearTimeout(toastTimer);
   toastTimer = window.setTimeout(hideToast, duration);
@@ -852,7 +860,7 @@ function showToast(message, type = "info", duration = 4000) {
 
 function hideToast() {
   clearTimeout(toastTimer);
-  ui.toast.classList.add("is-hidden");
+  ui.toast.classList.add("overlay-hidden");
 }
 
 function safelyHydrateUrl(value) {
@@ -886,7 +894,7 @@ function showQrCode() {
       });
       // Update accessible label with the actual URL
       ui.qrCanvas.setAttribute("aria-label", `QR code for ${target}`);
-      ui.qrOverlay.classList.remove("is-hidden");
+      ui.qrOverlay.classList.remove("overlay-hidden");
       // Move focus to the close button so keyboard/AT users land inside the overlay
       ui.qrCloseBtn.focus();
     } else {
@@ -898,7 +906,7 @@ function showQrCode() {
 }
 
 function hideQrCode() {
-  ui.qrOverlay.classList.add("is-hidden");
+  ui.qrOverlay.classList.add("overlay-hidden");
   // Return focus to the button that opened the overlay
   ui.qrBtn.focus();
 }
@@ -967,6 +975,10 @@ function handleDocumentClick(event) {
     ui.refreshDropdown.classList.add("is-hidden");
     ui.refreshBtn.setAttribute("aria-expanded", "false");
   }
+  if (!ui.zoomBtn.contains(event.target) && !ui.zoomDropdown.contains(event.target)) {
+    ui.zoomDropdown.classList.add("is-hidden");
+    ui.zoomBtn.setAttribute("aria-expanded", "false");
+  }
   if (!ui.moreBtn.contains(event.target) && !ui.moreDropdown.contains(event.target)) {
     ui.moreDropdown.classList.add("is-hidden");
     ui.moreBtn.setAttribute("aria-expanded", "false");
@@ -987,26 +999,29 @@ function syncThemeState() {
   syncMoreBtnState();
 }
 
-function zoomIn() {
-  state.zoom = Math.min(state.zoom + 0.1, 3.0);
+function handleZoomOptionClick(e) {
+  const li = e.target.closest("[data-pct]");
+  if (!li) return;
+  const pct = Number(li.dataset.pct);
+  if (!pct) return;
+  state.zoom = pct / 100;
+  state.desktopFit = false;
+  ui.zoomDropdown.classList.add("is-hidden");
+  ui.zoomBtn.setAttribute("aria-expanded", "false");
   syncZoomState();
   persistState();
 }
 
-function zoomOut() {
-  state.zoom = Math.max(state.zoom - 0.1, 0.25);
-  syncZoomState();
-  persistState();
-}
-
-function resetZoom() {
-  state.zoom = 1.0;
-  syncZoomState();
-  persistState();
+function syncZoomMenuState() {
+  if (!ui.zoomList) return;
+  const currentPct = Math.round(state.zoom * 100);
+  ui.zoomList.querySelectorAll("li[data-pct]").forEach((li) => {
+    li.setAttribute("aria-selected", String(Number(li.dataset.pct) === currentPct));
+  });
 }
 
 function syncZoomState() {
-  if (ui.zoomLevelBtn) {
+  if (ui.zoomBtn) {
     let label;
     if (state.desktopFit) {
       label = "Fit";
@@ -1015,12 +1030,12 @@ function syncZoomState() {
     } else {
       label = `${Math.round(state.zoom * 100)}%`;
     }
-    ui.zoomLevelBtn.textContent = label;
-    // Keep aria-label in sync so screen readers announce the correct value
-    ui.zoomLevelBtn.setAttribute("aria-label", `Reset zoom — current: ${label}`);
+    ui.zoomBtn.textContent = label;
+    ui.zoomBtn.setAttribute("aria-label", `Zoom — current: ${label}`);
   }
   if (state.desktopFit || state.mobileView) return;
   applyFrameLayout();
+  syncZoomMenuState();
 }
 
 function toggleDesktopFit() {
@@ -1160,6 +1175,7 @@ function syncAdvancedTools() {
   // Draw Mode
   ui.drawModeBtn.classList.toggle("is-active", state.drawMode);
   ui.drawCanvas.classList.toggle("is-hidden", !state.drawMode);
+  if (state.drawMode) { ui.drawCanvas.removeAttribute("role"); } else { ui.drawCanvas.setAttribute("role", "img"); }
   ui.clearDrawBtn.classList.toggle("is-hidden", !state.drawMode);
   ui.undoDrawBtn.classList.toggle("is-hidden", !state.drawMode);
   ui.drawColorRow.classList.toggle("is-hidden", !state.drawMode);
